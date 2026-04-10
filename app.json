@@ -31,7 +31,7 @@
         {
           "backgroundColor": "#208AEF",
           "android": {
-            "image": "./assets/images/splash-icon.png",
+            "image": "./assets/raft/logo-transparent.png",
             "imageWidth": 76
           }
         }
@@ -40,6 +40,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f271d9a0-105c-4454-9a37-36d1fe92338a"
+      }
     }
   }
 }
