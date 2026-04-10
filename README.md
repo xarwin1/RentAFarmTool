@@ -6,9 +6,9 @@
 - [ ] Logos and Icons
 
 ## Pages
-- [ ] Home
-- [ ] Browse
-- [ ] Add
+- [x] Home
+- [x] Browse
+- [x] Add
 - [ ] Transactions
 - [ ] Profile / Settings
 
@@ -21,4 +21,8 @@
 ## Changelog
 
  _Pre-04-09-26_ - added navigation bar, simple login system (not final) and initial setup of pages
+ 
  _04-10-26_ - Home page partially done, made some progress on theming
+
+ _04-11-26_ - major changes to navigation tabs, changed browse to messages, changed add to post and many more.\
+ home, messages, post tabs ready for prototyee presentation
