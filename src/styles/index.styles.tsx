@@ -52,6 +52,8 @@ const styles = StyleSheet.create({
     minWidth: 14,
     height: 14,
     borderRadius: 7,
+    backgroundColor: '#4caf50',
+    color: '#ffffff',
 
     paddingHorizontal: 2,
 

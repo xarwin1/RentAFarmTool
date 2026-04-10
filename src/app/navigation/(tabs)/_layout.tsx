@@ -14,23 +14,23 @@ export default function TabsLayout() {
         shadowOpacity: 0,
       }
     }}>
-      <Tabs.Screen name="index" options={{
+      <Tabs.Screen name="home" options={{
         title: "Home",
         tabBarIcon: ({ color, size }) => (<Ionicons name="home" size={size} color={color} />
         ),
       }} />
-      <Tabs.Screen name="browse" options={{
-        title: "Browse",
-        tabBarIcon: ({ color, size }) => (<Ionicons name="search" size={size} color={color} />
+      <Tabs.Screen name="messages" options={{
+        title: "Messages",
+        tabBarIcon: ({ color, size }) => (<Ionicons name="mail" size={size} color={color} />
         ),
       }} />
-      <Tabs.Screen name="add" options={{
-        title: "Add",
+      <Tabs.Screen name="post" options={{
+        title: "Post",
         tabBarIcon: ({ color, size }) => (<Ionicons name="add-circle-outline" size={size} color={color} />
         ),
       }} />
-      <Tabs.Screen name="transactions" options={{
-        title: "Transactions",
+      <Tabs.Screen name="rentals" options={{
+        title: "Rentals",
         tabBarIcon: ({ color, size }) => (<Ionicons name="receipt" size={size} color={color} />
         ),
       }} />
