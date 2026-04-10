@@ -9,7 +9,7 @@ export default function ScreenLayout({ children, style }) {
         {
           flex: 1,
           paddingTop: insets.top,
-          paddingBottom: insets.bottom,
+          paddingBottom: 0,
           paddingLeft: insets.left,
           paddingRight: insets.right
         },
