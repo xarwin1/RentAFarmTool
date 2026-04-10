@@ -21,3 +21,4 @@
 ## Changelog
 
  _Pre-04-09-26_ - added navigation bar, simple login system (not final) and initial setup of pages
+ _04-10-26_ - Home page partially done, made some progress on theming
