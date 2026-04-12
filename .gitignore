@@ -1,6 +1,5 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 .vscode/
-lib/appwrite.ts
 # dependencies
 node_modules/
 
@@ -33,6 +32,8 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env
+.env.local
 
 # typescript
 *.tsbuildinfo

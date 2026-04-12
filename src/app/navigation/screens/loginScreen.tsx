@@ -1,28 +1,29 @@
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-
 import {
   KeyboardAvoidingView,
   Platform,
-  StyleSheet,
   View,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import {
-  Button,
+  StyleSheet,
+  ScrollView,
+  Image,
+  Pressable,
   Text,
   TextInput,
-  useTheme,
-} from 'react-native-paper';
+} from 'react-native';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../../../../lib/auth-context';
+import { useTheme } from '@/theme/ThemeContext';
 
-export default function loginScreen() {
+export default function LoginScreen() {
   const [isSignUp, setIsSignUp] = useState<boolean>(false);
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const theme = useTheme();
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const router = useRouter();
   const { logIn, signUp } = useAuth();
 
@@ -36,26 +37,15 @@ export default function loginScreen() {
       return;
     }
     setError(null);
-
     if (isSignUp) {
       const authError = await signUp(email, password);
-      if (authError) {
-        setError(authError);
-        return;
-      }
+      if (authError) { setError(authError); return; }
       router.replace("/navigation/(tabs)");
     } else {
       const authError = await logIn(email, password);
-      if (authError) {
-        setError(authError);
-        return;
-      }
+      if (authError) { setError(authError); return; }
       router.replace("/navigation/(tabs)");
     }
-  };
-
-  const handleSwitchMode = () => {
-    setIsSignUp((prev) => !prev);
   };
 
   return (
@@ -63,94 +53,188 @@ export default function loginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      <View style={styles.content}>
-        <Text style={styles.title} variant="headlineMedium">
-          {isSignUp ? "Create an Account" : "Login"}
-        </Text>
-        <TextInput
-          label="Email"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          mode="outlined"
-          style={styles.input}
-          left={
-            <TextInput.Icon icon={({ color, size }) => (
-              <Ionicons name="mail-outline" color={color} size={size} />
-            )}
-            />
-          }
+      {/* GREEN HERO */}
+      <View style={styles.hero}>
+        <Image
+          source={require("@/assets/raft/logo-transparent.png")}
+          style={styles.logo}
         />
-        <TextInput
-          label="Password"
-          value={password}
-          onChangeText={setPassword}
-          autoCapitalize="none"
-          secureTextEntry
-          mode="outlined"
-          style={styles.input}
-          left={
-            <TextInput.Icon icon={({ color, size }) => (
-              <Ionicons name="lock-closed-outline" color={color} size={size} />
-            )}
-            />
-          }
-        />
-        {error && (
-          <Text style={styles.errorText}>{error}</Text>
-        )}
-        <Button
-          mode="contained"
-          style={styles.button}
-          onPress={handleAuth}
-        >
-          {isSignUp ? "Sign Up" : "Log In"}
-        </Button>
-        <Button
-          mode="text"
-          style={styles.switchBtn}
-          textColor="coral"
-          onPress={handleSwitchMode}
-        >
-          {isSignUp
-            ? "Already have an account? Log In"
-            : "Don't have an account? Create an account"
-          }
-        </Button>
       </View>
+
+      {/* BOTTOM SHEET */}
+      <ScrollView
+        style={styles.sheet}
+        contentContainerStyle={styles.sheetContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.handle} />
+
+        <Text style={styles.heading}>
+          {isSignUp ? "Create an account" : "Welcome back"}
+        </Text>
+
+        {/* EMAIL */}
+        <Text style={styles.label}>Email</Text>
+        <View style={styles.inputWrapper}>
+          <Ionicons name="mail-outline" size={18} color={theme.subtext} style={styles.inputIcon} />
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@email.com"
+            placeholderTextColor={theme.subtext}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            style={styles.input}
+          />
+        </View>
+
+        {/* PASSWORD */}
+        <Text style={styles.label}>Password</Text>
+        <View style={styles.inputWrapper}>
+          <Ionicons name="lock-closed-outline" size={18} color={theme.subtext} style={styles.inputIcon} />
+          <TextInput
+            value={password}
+            onChangeText={setPassword}
+            placeholder="••••••••"
+            placeholderTextColor={theme.subtext}
+            autoCapitalize="none"
+            secureTextEntry={!showPassword}
+            style={styles.input}
+          />
+          <Pressable onPress={() => setShowPassword(p => !p)}>
+            <Ionicons
+              name={showPassword ? "eye-off-outline" : "eye-outline"}
+              size={18}
+              color={theme.subtext}
+            />
+          </Pressable>
+        </View>
+
+        {/* ERROR */}
+        {error && <Text style={styles.errorText}>{error}</Text>}
+
+        {/* SUBMIT */}
+        <Pressable style={styles.button} onPress={handleAuth}>
+          <Text style={styles.buttonText}>
+            {isSignUp ? "Sign up" : "Log in"}
+          </Text>
+        </Pressable>
+
+        {/* SWITCH MODE */}
+        <Pressable onPress={() => setIsSignUp(p => !p)}>
+          <Text style={styles.switchText}>
+            {isSignUp
+              ? "Already have an account? "
+              : "Don't have an account? "}
+            <Text style={styles.switchLink}>
+              {isSignUp ? "Log in" : "Sign up"}
+            </Text>
+          </Text>
+        </Pressable>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F5F5F5",
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-    justifyContent: "center",
-  },
-  title: {
-    textAlign: "center",
-    marginBottom: 24,
-  },
-  input: {
-    marginBottom: 16,
-    color: "purple",
-  },
-  errorText: {
-    color: "#F44336",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  button: {
-    marginTop: 8,
-    backgroundColor: "coral",
-  },
-  switchBtn: {
-    marginTop: 8,
-  },
-});
+const createStyles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.primary,
+    },
+    hero: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingTop: 40,
+    },
+    logo: {
+      width: 256,
+      height: 256,
+      borderRadius: 28,
+      marginBottom: 14,
+    },
+    appTitle: {
+      fontSize: 24,
+      fontWeight: "700",
+      color: "#fff",
+      letterSpacing: 0.3,
+    },
+    sheet: {
+      backgroundColor: theme.card,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      flex: 1.2,
+    },
+    sheetContent: {
+      padding: 24,
+      paddingBottom: 40,
+    },
+    handle: {
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: theme.border,
+      alignSelf: "center",
+      marginBottom: 20,
+    },
+    heading: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: theme.text,
+      marginBottom: 20,
+    },
+    label: {
+      fontSize: 12,
+      color: theme.subtext,
+      marginBottom: 5,
+    },
+    inputWrapper: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      backgroundColor: theme.background,
+      marginBottom: 14,
+    },
+    inputIcon: {
+      marginRight: 8,
+    },
+    input: {
+      flex: 1,
+      paddingVertical: 11,
+      fontSize: 14,
+      color: theme.text,
+    },
+    errorText: {
+      color: "#F44336",
+      fontSize: 13,
+      marginBottom: 10,
+      textAlign: "center",
+    },
+    button: {
+      backgroundColor: theme.primary,
+      borderRadius: 12,
+      paddingVertical: 14,
+      alignItems: "center",
+      marginTop: 4,
+      marginBottom: 16,
+    },
+    buttonText: {
+      color: "#fff",
+      fontSize: 15,
+      fontWeight: "700",
+      letterSpacing: 0.4,
+    },
+    switchText: {
+      textAlign: "center",
+      fontSize: 13,
+      color: theme.subtext,
+    },
+    switchLink: {
+      color: theme.primary,
+      fontWeight: "600",
+    },
+  });

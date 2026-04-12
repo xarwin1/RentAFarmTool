@@ -8,7 +8,8 @@
     "scheme": "rentafarmtool",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.wowdev.rentafarmtool"
     },
     "android": {
       "package": "com.wowdev.rentafarmtool",
@@ -29,7 +30,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#4CAF50",
           "android": {
             "image": "./assets/raft/logo-transparent.png",
             "imageWidth": 76

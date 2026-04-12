@@ -1,17 +1,12 @@
 import React, { useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
+import { useTheme } from "@/theme/ThemeContext";
 
-const categories = [
-  "All",
-  "Tractors",
-  "Tools",
-  "Seeds",
-  "Equipment",
-  "Rentals",
-  "Others",
-];
+const categories = ["All", "Tractors", "Tools", "Seeds", "Equipment", "Rentals", "Others"];
 
 export default function CategoryFilter() {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const [selected, setSelected] = useState("All");
 
   return (
@@ -23,7 +18,6 @@ export default function CategoryFilter() {
       >
         {categories.map((item) => {
           const isActive = selected === item;
-
           return (
             <Pressable
               key={item}
@@ -41,38 +35,34 @@ export default function CategoryFilter() {
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: {
-    marginBottom: 10,
-  },
-
-  container: {
-    paddingHorizontal: 12,
-    gap: 10,
-    alignItems: "center",
-  },
-
-  chip: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#ccc",
-    backgroundColor: "transparent",
-  },
-
-  chipActive: {
-    backgroundColor: "#4CAF50",
-    borderColor: "#4CAF50",
-  },
-
-  text: {
-    fontSize: 14,
-    color: "#444",
-    fontWeight: "500",
-  },
-
-  textActive: {
-    color: "#fff",
-  },
-});
+const createStyles = (theme) =>
+  StyleSheet.create({
+    wrapper: {
+      marginBottom: 10,
+    },
+    container: {
+      paddingHorizontal: 12,
+      gap: 10,
+      alignItems: "center",
+    },
+    chip: {
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.card,
+    },
+    chipActive: {
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
+    },
+    text: {
+      fontSize: 14,
+      color: theme.subtext,
+      fontWeight: "500",
+    },
+    textActive: {
+      color: "#fff",
+    },
+  });

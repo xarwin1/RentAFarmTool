@@ -1,10 +1,11 @@
 import React from "react";
-import { View, Text, FlatList, StyleSheet, Pressable } from "react-native";
+import { View, Text, FlatList, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import styles from '../../../styles/index.styles';
-import msgStyles from '../../../styles/messages.styles';
+import createStyles from "../../../styles/index.styles";
+import createMsgStyles from "@/styles/messages.styles";
 import AppHeader from "@/components/AppHeader";
 import ScreenLayout from "@/styles/screenlayout";
+import { useTheme } from "@/theme/ThemeContext";
 
 const messages = [
   {
@@ -25,23 +26,25 @@ const messages = [
   },
   {
     id: "3",
-    name: "Ch4knu",
+    name: "Sanford",
     listing: "Seeder Machine",
-    lastMessage: "Pstingin panty",
+    lastMessage: "available pa dol🤏?",
     time: "Yesterday",
     unread: 0,
   },
 ];
 
 export default function MessagesScreen() {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
+  const msgStyles = createMsgStyles(theme);
+
   const renderItem = ({ item }) => (
     <Pressable style={msgStyles.chatItem}>
-
       {/* Avatar */}
       <View style={msgStyles.avatar}>
-        <Ionicons name="person" size={20} color="#555" />
+        <Ionicons name="person" size={20} color={theme.subtext} />
       </View>
-
       {/* Text Content */}
       <View style={msgStyles.chatContent}>
         <Text style={msgStyles.name}>{item.name}</Text>
@@ -50,26 +53,22 @@ export default function MessagesScreen() {
           {item.lastMessage}
         </Text>
       </View>
-
       {/* Right Side */}
       <View style={msgStyles.rightSection}>
         <Text style={msgStyles.time}>{item.time}</Text>
-
         {item.unread > 0 && (
           <View style={msgStyles.badge}>
             <Text style={msgStyles.badgeText}>{item.unread}</Text>
           </View>
         )}
       </View>
-
     </Pressable>
   );
 
   return (
-    <ScreenLayout>
+    <ScreenLayout style={{ backgroundColor: theme.background }}>
       <View style={styles.container}>
         <AppHeader title="Messages" notifications={3} />
-
         <View style={styles.main}>
           <FlatList
             data={messages}
