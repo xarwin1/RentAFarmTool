@@ -3,8 +3,12 @@
     "preview": {
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_APPWRITE_ENDPOINT": "https://sgp.cloud.appwrite.io/v1",
+        "EXPO_PUBLIC_APPWRITE_PROJECT_ID": "69ad39c90007cb0900a9",
+        "EXPO_PUBLIC_APPWRITE_PLATFORM": "com.wowdev.rentafarmtool"
       }
     }
   }
 }
-

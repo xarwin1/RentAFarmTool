@@ -31,8 +31,17 @@ export default function RootLayout() {
 
   useEffect(() => {
     async function prepare() {
-      await SplashScreen.hideAsync();
-      setAppReady(true);
+      try {
+        console.log("Hiding splash...");
+        await SplashScreen.hideAsync();
+        console.log("Splash hidden");
+        setAppReady(true);
+      } catch (e) {
+        console.error("Splash error:", e);
+        setAppReady(true); // hide splash even if error
+        console.log("ENDPOINT:", process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT);
+        console.log("PROJECT:", process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID);
+      }
     }
     prepare();
   }, []);
