@@ -1,0 +1,150 @@
+{
+  "projectId": "69ad39c90007cb0900a9",
+  "databases": [
+    {
+      "$id": "69d38d31002ac8de3799",
+      "name": "RentAFarmTool"
+    }
+  ],
+  "collections": [
+    {
+      "$id": "users",
+      "databaseId": "69d38d31002ac8de3799",
+      "name": "users",
+      "attributes": [
+        { "key": "name", "type": "string", "size": 255, "required": true },
+        { "key": "email", "type": "string", "size": 255, "required": true },
+        { "key": "phone", "type": "string", "size": 20, "required": false },
+        { "key": "avatar", "type": "string", "size": 36, "required": false },
+        { "key": "location", "type": "string", "size": 255, "required": false },
+        { "key": "memberSince", "type": "datetime", "required": true },
+        { "key": "responseRate", "type": "double", "required": false },
+        { "key": "rating", "type": "double", "required": false },
+        { "key": "totalListings", "type": "integer", "required": false },
+        { "key": "totalRentals", "type": "integer", "required": false }
+      ],
+      "indexes": []
+    },
+    {
+      "$id": "categories",
+      "databaseId": "69d38d31002ac8de3799",
+      "name": "categories",
+      "attributes": [
+        { "key": "name", "type": "string", "size": 100, "required": true },
+        { "key": "icon", "type": "string", "size": 100, "required": false },
+        { "key": "slug", "type": "string", "size": 100, "required": true }
+      ],
+      "indexes": []
+    },
+    {
+      "$id": "listings",
+      "databaseId": "69d38d31002ac8de3799",
+      "name": "listings",
+      "attributes": [
+        { "key": "ownerId", "type": "string", "size": 36, "required": true },
+        { "key": "categoryId", "type": "string", "size": 36, "required": true },
+        { "key": "title", "type": "string", "size": 255, "required": true },
+        { "key": "description", "type": "string", "size": 5000, "required": true },
+        { "key": "condition", "type": "string", "size": 10, "elements": ["new", "used"], "required": true },
+        { "key": "pricePerDay", "type": "double", "required": true },
+        { "key": "deposit", "type": "double", "required": false },
+        { "key": "location", "type": "string", "size": 255, "required": true },
+        { "key": "latitude", "type": "double", "required": false },
+        { "key": "longitude", "type": "double", "required": false },
+        { "key": "images", "type": "string", "size": 36, "array": true, "required": false },
+        { "key": "deliveryAvailable", "type": "boolean", "required": true },
+        { "key": "deliveryFee", "type": "double", "required": false },
+        { "key": "cancellationPolicy", "type": "string", "size": 1000, "required": false },
+        { "key": "availableFrom", "type": "datetime", "required": false },
+        { "key": "availableTo", "type": "datetime", "required": false },
+        { "key": "status", "type": "string", "size": 20, "elements": ["active", "inactive", "rented"], "required": true },
+        { "key": "rating", "type": "double", "required": false },
+        { "key": "totalReviews", "type": "integer", "required": false }
+      ],
+      "indexes": [
+        { "key": "ownerId_index", "type": "key", "attributes": ["ownerId"] },
+        { "key": "status_index", "type": "key", "attributes": ["status"] },
+        { "key": "categoryId_index", "type": "key", "attributes": ["categoryId"] }
+      ]
+    },
+    {
+      "$id": "rentals",
+      "databaseId": "69d38d31002ac8de3799",
+      "name": "rentals",
+      "attributes": [
+        { "key": "listingId", "type": "string", "size": 36, "required": true },
+        { "key": "renterId", "type": "string", "size": 36, "required": true },
+        { "key": "ownerId", "type": "string", "size": 36, "required": true },
+        { "key": "startDate", "type": "datetime", "required": true },
+        { "key": "endDate", "type": "datetime", "required": true },
+        { "key": "totalDays", "type": "integer", "required": true },
+        { "key": "dailyRate", "type": "double", "required": true },
+        { "key": "deposit", "type": "double", "required": false },
+        { "key": "deliveryMode", "type": "string", "size": 20, "elements": ["pickup", "delivery"], "required": true },
+        { "key": "deliveryAddress", "type": "string", "size": 500, "required": false },
+        { "key": "deliveryFee", "type": "double", "required": false },
+        { "key": "subtotal", "type": "double", "required": true },
+        { "key": "total", "type": "double", "required": true },
+        { "key": "notes", "type": "string", "size": 1000, "required": false },
+        { "key": "status", "type": "string", "size": 20, "elements": ["pending", "ongoing", "completed", "cancelled"], "required": true }
+      ],
+      "indexes": [
+        { "key": "renterId_index", "type": "key", "attributes": ["renterId"] },
+        { "key": "ownerId_index", "type": "key", "attributes": ["ownerId"] },
+        { "key": "listingId_index", "type": "key", "attributes": ["listingId"] },
+        { "key": "status_index", "type": "key", "attributes": ["status"] }
+      ]
+    },
+    {
+      "$id": "messages",
+      "databaseId": "69d38d31002ac8de3799",
+      "name": "messages",
+      "attributes": [
+        { "key": "senderId", "type": "string", "size": 36, "required": true },
+        { "key": "receiverId", "type": "string", "size": 36, "required": true },
+        { "key": "listingId", "type": "string", "size": 36, "required": false },
+        { "key": "rentalId", "type": "string", "size": 36, "required": false },
+        { "key": "content", "type": "string", "size": 5000, "required": true },
+        { "key": "isRead", "type": "boolean", "required": true }
+      ],
+      "indexes": [
+        { "key": "senderId_index", "type": "key", "attributes": ["senderId"] },
+        { "key": "receiverId_index", "type": "key", "attributes": ["receiverId"] }
+      ]
+    },
+    {
+      "$id": "reviews",
+      "databaseId": "69d38d31002ac8de3799",
+      "name": "reviews",
+      "attributes": [
+        { "key": "rentalId", "type": "string", "size": 36, "required": true },
+        { "key": "listingId", "type": "string", "size": 36, "required": true },
+        { "key": "reviewerId", "type": "string", "size": 36, "required": true },
+        { "key": "ownerId", "type": "string", "size": 36, "required": true },
+        { "key": "rating", "type": "integer", "required": true, "min": 1, "max": 5 },
+        { "key": "comment", "type": "string", "size": 2000, "required": false }
+      ],
+      "indexes": [
+        { "key": "listingId_index", "type": "key", "attributes": ["listingId"] },
+        { "key": "reviewerId_index", "type": "key", "attributes": ["reviewerId"] }
+      ]
+    },
+    {
+      "$id": "notifications",
+      "databaseId": "69d38d31002ac8de3799",
+      "name": "notifications",
+      "attributes": [
+        { "key": "userId", "type": "string", "size": 36, "required": true },
+        { "key": "type", "type": "string", "size": 20, "elements": ["booking", "message", "review", "system"], "required": true },
+        { "key": "title", "type": "string", "size": 255, "required": true },
+        { "key": "body", "type": "string", "size": 1000, "required": true },
+        { "key": "isRead", "type": "boolean", "required": true },
+        { "key": "relatedId", "type": "string", "size": 36, "required": false }
+      ],
+      "indexes": [
+        { "key": "userId_index", "type": "key", "attributes": ["userId"] },
+        { "key": "isRead_index", "type": "key", "attributes": ["isRead"] }
+      ]
+    }
+  ]
+}

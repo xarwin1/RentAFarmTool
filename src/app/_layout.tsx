@@ -33,7 +33,7 @@ export default function RootLayout() {
     async function prepare() {
       try {
         console.log("Hiding splash...");
-        await SplashScreen.hideAsync();
+        await SplashScreen.hideAsync()
         console.log("Splash hidden");
         setAppReady(true);
       } catch (e) {
@@ -65,6 +65,8 @@ export default function RootLayout() {
             <RouteGuard>
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="navigation/(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="navigation/screens/listingDetail" options={{ headerShown: false }} />
+                <Stack.Screen name="navigation/screens/bookingScreen" options={{ headerShown: false }} />
               </Stack>
             </RouteGuard>
           </SafeAreaProvider>
