@@ -1,69 +1,153 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Theme } from "@/theme/theme";
+import { useRouter } from "expo-router";
 
 type Props = {
   item: {
-    title: string;
-    user: string;
+    $id: string;
+    listingId: string;
+    renterId?: string;
+    ownerId?: string;
     startDate: string;
     endDate: string;
-    price: number;
-    unit: string;
+    dailyRate: number;
+    totalDays: number;
+    total: number;
     status: string;
+    deliveryMode: string;
+    listing?: { title: string };
+    otherUser?: { name: string };
   };
   type: "owner" | "renter";
   theme: Theme;
+  onAccept?: () => void;
+  onDecline?: () => void;
 };
 
-export default function RentalCard({ item, type, theme }: Props) {
+export default function RentalCard({ item, type, theme, onAccept, onDecline }: Props) {
   const styles = createCardStyles(theme);
+  const router = useRouter();
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return "—";
+    return new Date(dateStr).toLocaleDateString("en-PH", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  const handleCardPress = () => {
+    router.push(`/navigation/screens/rentalDetail?id=${item.$id}&type=${type}`);
+  };
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.title}>{item.title}</Text>
-      <Text style={styles.sub}>
-        {type === "owner" ? "Renter" : "Owner"}: {item.user}
-      </Text>
-      <Text style={styles.sub}>
-        {item.startDate} - {item.endDate}
-      </Text>
-      <Text style={styles.price}>₱{item.price}/{item.unit}</Text>
-      <View style={[styles.badge, badgeColor(item.status)]}>
-        <Text style={styles.badgeText}>{item.status}</Text>
-      </View>
-      <View style={styles.actions}>
-        {item.status === "Pending" && (
-          <>
-            <Pressable style={styles.acceptBtn}>
-              <Text style={styles.btnText}>Accept</Text>
+    <Pressable onPress={handleCardPress} style={({ pressed }) => [{ opacity: pressed ? 0.95 : 1 }]}>
+      <View style={styles.card}>
+        {/* TITLE */}
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <Text style={styles.title}>
+            {item.listing?.title || "Listing unavailable"}
+          </Text>
+          <View style={[styles.badge, badgeColor(item.status)]}>
+            <Text style={styles.badgeText}>{item.status}</Text>
+          </View>
+        </View>
+
+        {/* USER */}
+        <Text style={styles.sub}>
+          {type === "owner" ? "Renter" : "Owner"}: {item.otherUser?.name || "—"}
+        </Text>
+
+        {/* DATES */}
+        <Text style={styles.sub}>
+          {formatDate(item.startDate)} — {formatDate(item.endDate)}
+        </Text>
+
+        {/* DAYS + DELIVERY */}
+        <Text style={styles.sub}>
+          {item.totalDays} {item.totalDays === 1 ? "day" : "days"} •{" "}
+          {item.deliveryMode === "delivery" ? "Delivery" : "Pickup"}
+        </Text>
+
+        {/* PRICE */}
+        <Text style={styles.price}>
+          ₱{item.total?.toLocaleString()} total
+          <Text style={{ fontWeight: "400", fontSize: 12, color: theme.subtext }}>
+            {" "}(₱{item.dailyRate?.toLocaleString()}/day)
+          </Text>
+        </Text>
+
+        {/* ACTIONS */}
+        <View style={styles.actions}>
+          {item.status === "pending" && type === "owner" && (
+            <>
+              <Pressable
+                style={styles.acceptBtn}
+                onPress={(e) => { e.stopPropagation?.(); onAccept?.(); }}
+              >
+                <Text style={styles.btnText}>Accept</Text>
+              </Pressable>
+              <Pressable
+                style={styles.declineBtn}
+                onPress={(e) => { e.stopPropagation?.(); onDecline?.(); }}
+              >
+                <Text style={styles.btnText}>Decline</Text>
+              </Pressable>
+            </>
+          )}
+          {item.status === "pending" && type === "renter" && (
+            <Pressable
+              style={styles.declineBtn}
+              onPress={(e) => { e.stopPropagation?.(); onDecline?.(); }}
+            >
+              <Text style={styles.btnText}>Cancel request</Text>
             </Pressable>
-            <Pressable style={styles.declineBtn}>
-              <Text style={styles.btnText}>Decline</Text>
+          )}
+          {item.status === "ongoing" && (
+            <Pressable
+              style={styles.messageBtn}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                router.push(
+                  `/navigation/screens/conversation?partnerId=${type === "owner" ? item.renterId : item.ownerId
+                  }&partnerName=${item.otherUser?.name || "User"}`
+                );
+              }}
+            >
+              <Text style={styles.btnText}>Message</Text>
             </Pressable>
-          </>
-        )}
-        {item.status === "Ongoing" && (
-          <Pressable style={styles.messageBtn}>
-            <Text style={styles.btnText}>Message</Text>
+          )}
+          {item.status === "completed" && (
+            <Pressable
+              style={styles.viewBtn}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                router.push(`/navigation/screens/listingDetail?id=${item.listingId}`);
+              }}
+            >
+              <Text style={styles.btnText}>View listing</Text>
+            </Pressable>
+          )}
+          <Pressable
+            style={styles.detailBtn}
+            onPress={handleCardPress}
+          >
+            <Text style={styles.btnText}>View details</Text>
           </Pressable>
-        )}
-        {item.status === "Completed" && (
-          <Pressable style={styles.viewBtn}>
-            <Text style={styles.btnText}>View</Text>
-          </Pressable>
-        )}
+        </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
-// Status badge colors stay semantic regardless of theme
 const badgeColor = (status: string) => {
   switch (status) {
-    case "Pending": return { backgroundColor: "#FFC107" };
-    case "Ongoing": return { backgroundColor: "#2E7D32" };
-    case "Completed": return { backgroundColor: "#888" };
+    case "pending": return { backgroundColor: "#FFC107" };
+    case "ongoing": return { backgroundColor: "#2E7D32" };
+    case "completed": return { backgroundColor: "#888" };
+    case "cancelled": return { backgroundColor: "#D32F2F" };
     default: return { backgroundColor: "#ccc" };
   }
 };
@@ -83,18 +167,21 @@ const createCardStyles = (theme: Theme) =>
       fontSize: 16,
       fontWeight: "700",
       color: theme.text,
+      flex: 1,
+      marginRight: 8,
     },
     sub: {
       color: theme.subtext,
       marginTop: 2,
+      fontSize: 13,
     },
     price: {
       marginTop: 6,
       fontWeight: "600",
       color: theme.text,
+      fontSize: 15,
     },
     badge: {
-      marginTop: 8,
       alignSelf: "flex-start",
       paddingHorizontal: 8,
       paddingVertical: 4,
@@ -108,6 +195,7 @@ const createCardStyles = (theme: Theme) =>
       flexDirection: "row",
       marginTop: 10,
       gap: 10,
+      flexWrap: "wrap",
     },
     acceptBtn: {
       backgroundColor: "#2E7D32",
@@ -126,6 +214,11 @@ const createCardStyles = (theme: Theme) =>
     },
     viewBtn: {
       backgroundColor: "#555",
+      padding: 8,
+      borderRadius: 8,
+    },
+    detailBtn: {
+      backgroundColor: theme.primary,
       padding: 8,
       borderRadius: 8,
     },

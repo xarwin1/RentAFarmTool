@@ -1,469 +1,438 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   ScrollView,
   Pressable,
-  StyleSheet,
-  TextInput,
   Image,
-  Modal,
+  StyleSheet,
+  ActivityIndicator,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/theme/ThemeContext";
 import ScreenLayout from "@/styles/screenlayout";
-import { CalendarList } from "react-native-calendars";
+import { getListing, getReviews, getUser } from "../../../../lib/services";
+import { avatars } from "../../../../lib/appwrite";
 
-export default function BookingScreen() {
+const TABS = ["Details", "Reviews", "Owner"];
+
+export default function ListingDetailScreen() {
   const { theme } = useTheme();
   const router = useRouter();
   const styles = createStyles(theme);
+  const { id } = useLocalSearchParams<{ id: string }>();
 
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [markedDates, setMarkedDates] = useState({});
-  const [showCalendar, setShowCalendar] = useState<"start" | "end" | null>(null);
-  const [deliveryMode, setDeliveryMode] = useState<"pickup" | "delivery">("pickup");
-  const [address, setAddress] = useState("");
-  const [addressQuery, setAddressQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [notes, setNotes] = useState("");
-  const [agreed, setAgreed] = useState(false);
+  const [activeTab, setActiveTab] = useState("Details");
+  const [listing, setListing] = useState<any>(null);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [owner, setOwner] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const DAILY_RATE = 1500;
-  const DEPOSIT = 500;
-  const DELIVERY_FEE = 200;
+  useEffect(() => {
+    if (id) loadAll();
+  }, [id]);
 
-  const parseDays = () => {
-    if (!startDate || !endDate) return 0;
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    return diff > 0 ? diff : 0;
-  };
-
-  const days = parseDays();
-  const subtotal = days * DAILY_RATE;
-  const deliveryFee = deliveryMode === "delivery" ? DELIVERY_FEE : 0;
-  const total = subtotal + DEPOSIT + deliveryFee;
-
-  const handleDayPress = (day: any) => {
-    const dateStr = day.dateString;
-    if (showCalendar === "start") {
-      setStartDate(dateStr);
-      if (endDate && dateStr >= endDate) setEndDate("");
-      buildMarked(dateStr, endDate);
-      setShowCalendar("end");
-    } else {
-      if (dateStr <= startDate) return;
-      setEndDate(dateStr);
-      buildMarked(startDate, dateStr);
-      setShowCalendar(null);
+  const loadAll = async () => {
+    try {
+      const listingData = await getListing(id);
+      setListing(listingData);
+      const [reviewsData, ownerData] = await Promise.all([
+        getReviews(id),
+        getUser(listingData.ownerId),
+      ]);
+      setReviews(reviewsData.documents);
+      setOwner(ownerData);
+    } catch (err) {
+      console.error("Failed to load listing:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const buildMarked = (start: string, end: string) => {
-    if (!start) return;
-    const marked: any = {};
-    marked[start] = {
-      startingDay: true,
-      color: theme.primary,
-      textColor: "#fff",
-    };
-    if (end && end !== start) {
-      let current = new Date(start);
-      current.setDate(current.getDate() + 1);
-      const endD = new Date(end);
-      while (current < endD) {
-        const key = current.toISOString().split("T")[0];
-        marked[key] = { color: `${theme.primary}40`, textColor: theme.text };
-        current.setDate(current.getDate() + 1);
-      }
-      marked[end] = {
-        endingDay: true,
-        color: theme.primary,
-        textColor: "#fff",
-      };
-    }
-    setMarkedDates(marked);
-  };
+  const renderStars = (rating: number, size = 14) =>
+    Array.from({ length: 5 }).map((_, i) => (
+      <Ionicons
+        key={i}
+        name={i < rating ? "star" : "star-outline"}
+        size={size}
+        color={i < rating ? "#F5C842" : theme.border}
+      />
+    ));
 
-  const formatDate = (date: string) => {
-    if (!date) return "Select date";
-    const d = new Date(date);
-    return d.toLocaleDateString("en-PH", {
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return "—";
+    return new Date(dateStr).toLocaleDateString("en-PH", {
       month: "short",
       day: "numeric",
       year: "numeric",
     });
   };
 
-  const handleAddressSearch = async (query: string) => {
-    setAddressQuery(query);
-    if (query.length < 3) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5&countrycodes=ph`,
-        {
-          headers: {
-            "Accept-Language": "en",
-            "User-Agent": "RentAFarmTool/1.0",
-          },
-        }
-      );
-      const data = await res.json();
-      setSuggestions(data);
-      setShowSuggestions(true);
-    } catch (err) {
-      console.error("Nominatim error:", err);
-    }
-  };
+  const avgRating =
+    reviews.length > 0
+      ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+      : 0;
 
-  const handleSelectAddress = (item: any) => {
-    const formatted = item.display_name;
-    setAddress(formatted);
-    setAddressQuery(formatted);
-    setSuggestions([]);
-    setShowSuggestions(false);
-  };
+  const starBreakdown = [5, 4, 3, 2, 1].map((star) => ({
+    star,
+    count: reviews.filter((r) => r.rating === star).length,
+    percent:
+      reviews.length > 0
+        ? (reviews.filter((r) => r.rating === star).length / reviews.length) * 100
+        : 0,
+  }));
+
+  // parse booked date ranges for display
+  const bookedRanges = (listing?.bookedDates || []).map((d: string) => {
+    try { return JSON.parse(d); } catch { return null; }
+  }).filter(Boolean);
+
+  const renderDetails = () => (
+    <View style={styles.tabContent}>
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Description</Text>
+        <Text style={styles.bodyText}>{listing?.description || "—"}</Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Info</Text>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Condition</Text>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>
+              {listing?.condition?.charAt(0).toUpperCase() + listing?.condition?.slice(1)}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Availability</Text>
+          <Text style={styles.infoValue}>
+            {listing?.availableFrom && listing?.availableTo
+              ? `${formatDate(listing.availableFrom)} – ${formatDate(listing.availableTo)}`
+              : "Flexible"}
+          </Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Location</Text>
+          <Text style={styles.infoValue}>📍 {listing?.location || "—"}</Text>
+        </View>
+
+        {/* BOOKED DATES BANNER */}
+        {bookedRanges.length > 0 && (
+          <View style={styles.bookedBanner}>
+            <Ionicons name="calendar-outline" size={16} color="#F44336" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.bookedBannerTitle}>Some dates are already booked</Text>
+              {bookedRanges.map((range: any, index: number) => (
+                <Text key={index} style={styles.bookedBannerDate}>
+                  • {formatDate(range.from)} — {formatDate(range.to)}
+                </Text>
+              ))}
+            </View>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Rental terms</Text>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Deposit</Text>
+          <Text style={styles.infoValue}>
+            {listing?.deposit ? `₱${listing.deposit.toLocaleString()}` : "None"}
+          </Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Delivery</Text>
+          <Text style={styles.infoValue}>
+            {listing?.deliveryAvailable
+              ? `Available (+₱${listing.deliveryFee || 0})`
+              : "Pickup only"}
+          </Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Cancellation</Text>
+          <Text style={styles.infoValue}>
+            {listing?.cancellationPolicy || "Not specified"}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderReviews = () => (
+    <View style={styles.tabContent}>
+      <View style={styles.card}>
+        <View style={styles.ratingOverview}>
+          <Text style={styles.ratingScore}>
+            {avgRating > 0 ? avgRating.toFixed(1) : "—"}
+          </Text>
+          <View>
+            <View style={styles.starsRow}>{renderStars(Math.round(avgRating), 18)}</View>
+            <Text style={styles.ratingCount}>{reviews.length} reviews</Text>
+          </View>
+        </View>
+        <View style={styles.ratingBreakdown}>
+          {starBreakdown.map(({ star, percent }) => (
+            <View key={star} style={styles.ratingBarRow}>
+              <Text style={styles.ratingBarLabel}>{star}</Text>
+              <Ionicons name="star" size={11} color="#F5C842" />
+              <View style={styles.ratingBarBg}>
+                <View style={[styles.ratingBarFill, { width: `${percent}%` }]} />
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {reviews.length === 0 ? (
+        <View style={styles.card}>
+          <Text style={{ color: theme.subtext, textAlign: "center", fontSize: 13 }}>
+            No reviews yet.
+          </Text>
+        </View>
+      ) : (
+        reviews.map((review) => (
+          <View key={review.$id} style={styles.card}>
+            <View style={styles.reviewHeader}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {review.reviewerId?.substring(0, 2).toUpperCase()}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.reviewName}>{review.reviewerName || "User"}</Text>
+                <View style={styles.starsRow}>{renderStars(review.rating)}</View>
+              </View>
+            </View>
+            <Text style={styles.bodyText}>{review.comment}</Text>
+          </View>
+        ))
+      )}
+    </View>
+  );
+
+  const renderOwner = () => (
+    <View style={styles.tabContent}>
+      <View style={styles.card}>
+        <View style={styles.ownerHeader}>
+          <Image
+            source={{
+              uri:
+                owner?.avatar ||
+                avatars.getInitials(owner?.name || "U").toString(),
+            }}
+            style={styles.ownerAvatar as any}
+          />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.ownerName}>{owner?.name || "—"}</Text>
+            <View style={styles.starsRow}>
+              {renderStars(Math.round(owner?.rating || 0))}
+              <Text style={[styles.infoLabel, { marginLeft: 4 }]}>
+                {owner?.rating > 0 ? owner.rating.toFixed(1) : "New"}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Stats</Text>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Listings</Text>
+          <Text style={styles.infoValue}>{owner?.totalListings ?? "—"}</Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Member since</Text>
+          <Text style={styles.infoValue}>
+            {owner?.memberSince
+              ? new Date(owner.memberSince).toLocaleDateString("en-PH", {
+                month: "long",
+                year: "numeric",
+              })
+              : "—"}
+          </Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Total rentals</Text>
+          <Text style={styles.infoValue}>{owner?.totalRentals ?? "—"}</Text>
+        </View>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Contact</Text>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Phone</Text>
+          <Text style={styles.infoValue}>{owner?.phone || "Not provided"}</Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Email</Text>
+          <Text style={styles.infoValue}>{owner?.email || "—"}</Text>
+        </View>
+      </View>
+
+      <Pressable
+        style={styles.messageOwnerBtn}
+        onPress={() =>
+          router.push(
+            `/navigation/screens/conversation?partnerId=${owner?.$id}&partnerName=${owner?.name || "Owner"}`
+          )
+        }
+      >
+        <Ionicons name="chatbubble-outline" size={18} color="#fff" />
+        <Text style={styles.messageOwnerText}>Message owner</Text>
+      </Pressable>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <ScreenLayout style={{ backgroundColor: theme.background }}>
+        <ActivityIndicator size="large" color={theme.primary} style={{ flex: 1 }} />
+      </ScreenLayout>
+    );
+  }
 
   return (
     <ScreenLayout style={{ backgroundColor: theme.background }}>
       <View style={{ flex: 1 }}>
-        {/* HEADER */}
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color={theme.text} />
-          </Pressable>
-          <Text style={styles.headerTitle}>Book Listing</Text>
-          <View style={{ width: 38 }} />
-        </View>
-
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* LISTING SUMMARY CARD */}
-          <View style={styles.card}>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* IMAGE */}
+          <View style={{ position: "relative" }}>
             <Image
-              source={{ uri: "https://ferrari.scene7.com/is/image/ferrari/67b4b9739b77dc0010a956aa-sf-25-launch-desk" }}
-              style={styles.listingImage}
+              source={{
+                uri: "https://www.deere.com/assets/images/region-4/products/tractors/utility-tractors/6m-series-utility-tractors/6M_155_Front_Left_studio_graphic_1024x576_small_ad511f737c4f9d929dd90cdfd360038474a69d9a.jpg",
+              }}
+              style={styles.image}
             />
-            <View style={styles.listingInfo}>
-              <Text style={styles.listingTitle}>Tractor</Text>
-              <Text style={styles.listingSubtitle}>Ferrari SF-25</Text>
-              <Text style={styles.listingPrice}>₱1,500/day</Text>
-              <View style={styles.listingMeta}>
-                <Ionicons name="location-outline" size={12} color={theme.subtext} />
-                <Text style={styles.listingMetaText}>Naic, Cavite</Text>
-                <Ionicons name="star" size={12} color="#F5C842" />
-                <Text style={styles.listingMetaText}>4.8</Text>
-              </View>
-            </View>
+            <Pressable style={styles.backBtn} onPress={() => router.back()}>
+              <Ionicons name="arrow-back" size={22} color={theme.text} />
+            </Pressable>
           </View>
 
-          {/* DATE RANGE */}
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Rental dates</Text>
-            <View style={styles.dateRow}>
-              <Pressable
-                style={[styles.dateBtn, showCalendar === "start" && styles.dateBtnActive]}
-                onPress={() => setShowCalendar("start")}
-              >
-                <Ionicons
-                  name="calendar-outline"
-                  size={16}
-                  color={showCalendar === "start" ? theme.primary : theme.subtext}
-                />
-                <View>
-                  <Text style={styles.dateBtnLabel}>Start</Text>
-                  <Text style={[styles.dateBtnValue, startDate && { color: theme.text }]}>
-                    {formatDate(startDate)}
-                  </Text>
-                </View>
-              </Pressable>
-
-              <Ionicons name="arrow-forward" size={16} color={theme.subtext} />
-
-              <Pressable
-                style={[styles.dateBtn, showCalendar === "end" && styles.dateBtnActive]}
-                onPress={() => setShowCalendar("end")}
-              >
-                <Ionicons
-                  name="calendar-outline"
-                  size={16}
-                  color={showCalendar === "end" ? theme.primary : theme.subtext}
-                />
-                <View>
-                  <Text style={styles.dateBtnLabel}>End</Text>
-                  <Text style={[styles.dateBtnValue, endDate && { color: theme.text }]}>
-                    {formatDate(endDate)}
-                  </Text>
-                </View>
-              </Pressable>
+          {/* TITLE CARD */}
+          <View style={styles.titleCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.title}>{listing?.title || "—"}</Text>
+              <Text style={styles.subtitle}>📍 {listing?.location || "—"}</Text>
             </View>
-
-            {days > 0 && (
-              <View style={styles.daysSummary}>
-                <Ionicons name="time-outline" size={16} color={theme.primary} />
-                <Text style={styles.daysSummaryText}>
-                  {days} {days === 1 ? "day" : "days"} selected
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* PICKUP OR DELIVERY */}
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Collection method</Text>
-            <View style={styles.modeRow}>
-              <Pressable
-                style={[styles.modeBtn, deliveryMode === "pickup" && styles.modeBtnActive]}
-                onPress={() => setDeliveryMode("pickup")}
-              >
-                <Ionicons
-                  name="walk-outline"
-                  size={20}
-                  color={deliveryMode === "pickup" ? "#fff" : theme.subtext}
-                />
-                <Text style={[styles.modeBtnText, deliveryMode === "pickup" && styles.modeBtnTextActive]}>
-                  Pickup
-                </Text>
-                <Text style={[styles.modeBtnSub, deliveryMode === "pickup" && { color: "rgba(255,255,255,0.7)" }]}>
-                  Free
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.modeBtn, deliveryMode === "delivery" && styles.modeBtnActive]}
-                onPress={() => setDeliveryMode("delivery")}
-              >
-                <Ionicons
-                  name="car-outline"
-                  size={20}
-                  color={deliveryMode === "delivery" ? "#fff" : theme.subtext}
-                />
-                <Text style={[styles.modeBtnText, deliveryMode === "delivery" && styles.modeBtnTextActive]}>
-                  Delivery
-                </Text>
-                <Text style={[styles.modeBtnSub, deliveryMode === "delivery" && { color: "rgba(255,255,255,0.7)" }]}>
-                  +₱{DELIVERY_FEE}
-                </Text>
-              </Pressable>
-            </View>
-
-            {/* ADDRESS */}
-            {deliveryMode === "delivery" && (
-              <View style={styles.addressWrapper}>
-                <Text style={styles.label}>Delivery address</Text>
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="location-outline" size={16} color={theme.subtext} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Search your address..."
-                    placeholderTextColor={theme.subtext}
-                    value={addressQuery}
-                    onChangeText={handleAddressSearch}
-                    onFocus={() => addressQuery.length >= 3 && setShowSuggestions(true)}
-                  />
-                  {addressQuery.length > 0 && (
-                    <Pressable onPress={() => {
-                      setAddressQuery("");
-                      setAddress("");
-                      setSuggestions([]);
-                      setShowSuggestions(false);
-                    }}>
-                      <Ionicons name="close-circle" size={16} color={theme.subtext} />
-                    </Pressable>
-                  )}
-                </View>
-
-                {showSuggestions && suggestions.length > 0 && (
-                  <View style={styles.suggestionList}>
-                    {suggestions.map((item, index) => (
-                      <Pressable
-                        key={index}
-                        style={[
-                          styles.suggestionItem,
-                          index < suggestions.length - 1 && styles.suggestionBorder,
-                        ]}
-                        onPress={() => handleSelectAddress(item)}
-                      >
-                        <Ionicons name="location-outline" size={14} color={theme.primary} />
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.suggestionMain} numberOfLines={1}>
-                            {item.address?.road || item.address?.suburb || item.name}
-                          </Text>
-                          <Text style={styles.suggestionSub} numberOfLines={1}>
-                            {item.address?.city || item.address?.municipality}, {item.address?.state}
-                          </Text>
-                        </View>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-              </View>
-            )}
-          </View>
-
-          {/* PRICE BREAKDOWN */}
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Price breakdown</Text>
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>
-                ₱{DAILY_RATE.toLocaleString()} x {days} {days === 1 ? "day" : "days"}
-              </Text>
-              <Text style={styles.priceValue}>₱{subtotal.toLocaleString()}</Text>
-            </View>
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>Deposit</Text>
-              <Text style={styles.priceValue}>₱{DEPOSIT.toLocaleString()}</Text>
-            </View>
-            {deliveryMode === "delivery" && (
-              <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>Delivery fee</Text>
-                <Text style={styles.priceValue}>₱{DELIVERY_FEE.toLocaleString()}</Text>
-              </View>
-            )}
-            <View style={styles.divider} />
-            <View style={styles.priceRow}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>₱{total.toLocaleString()}</Text>
-            </View>
-          </View>
-
-          {/* NOTES */}
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Notes</Text>
-            <TextInput
-              style={styles.textArea}
-              placeholder="Any special instructions for the owner..."
-              placeholderTextColor={theme.subtext}
-              multiline
-              value={notes}
-              onChangeText={setNotes}
-            />
-          </View>
-
-          {/* TERMS */}
-          <Pressable
-            style={styles.termsRow}
-            onPress={() => setAgreed((p) => !p)}
-          >
-            <View style={[styles.checkbox, agreed && styles.checkboxActive]}>
-              {agreed && <Ionicons name="checkmark" size={14} color="#fff" />}
-            </View>
-            <Text style={styles.termsText}>
-              I agree to the{" "}
-              <Text style={styles.termsLink}>terms and conditions</Text>
+            <Text style={styles.price}>
+              ₱{listing?.pricePerDay?.toLocaleString()}/day
             </Text>
-          </Pressable>
+          </View>
+
+          {/* TABS */}
+          <View style={styles.tabBar}>
+            {TABS.map((tab) => (
+              <Pressable
+                key={tab}
+                style={[styles.tab, activeTab === tab && styles.tabActive]}
+                onPress={() => setActiveTab(tab)}
+              >
+                <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
+                  {tab}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {activeTab === "Details" && renderDetails()}
+          {activeTab === "Reviews" && renderReviews()}
+          {activeTab === "Owner" && renderOwner()}
         </ScrollView>
 
-        {/* CONFIRM BUTTON */}
+        {/* STICKY BOTTOM ACTIONS */}
         <View style={styles.bottomBar}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.totalSummaryLabel}>Total</Text>
-            <Text style={styles.totalSummaryValue}>₱{total.toLocaleString()}</Text>
-          </View>
           <Pressable
-            style={[
-              styles.confirmBtn,
-              (!agreed || days === 0 || (deliveryMode === "delivery" && !address)) &&
-              styles.confirmBtnDisabled,
-            ]}
-            disabled={!agreed || days === 0 || (deliveryMode === "delivery" && !address)}
-            onPress={() => console.log("Booking confirmed")}
+            style={styles.messageBtn}
+            onPress={() =>
+              router.push(
+                `/navigation/screens/conversation?partnerId=${listing?.ownerId}&partnerName=${owner?.name || "Owner"}`
+              )
+            }
           >
-            <Text style={styles.confirmBtnText}>Confirm booking</Text>
+            <Ionicons name="chatbubble-outline" size={18} color={theme.primary} />
+            <Text style={styles.messageBtnText}>Message</Text>
+          </Pressable>
+          <Pressable
+            style={styles.rentBtn}
+            onPress={() =>
+              router.push(`/navigation/screens/bookingScreen?id=${id}`)
+            }
+          >
+            <Text style={styles.rentBtnText}>Rent Now</Text>
           </Pressable>
         </View>
       </View>
-
-      {/* CALENDAR MODAL */}
-      <Modal
-        visible={showCalendar !== null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowCalendar(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {showCalendar === "start" ? "Select start date" : "Select end date"}
-              </Text>
-              <Pressable onPress={() => setShowCalendar(null)}>
-                <Ionicons name="close" size={22} color={theme.text} />
-              </Pressable>
-            </View>
-            <CalendarList
-              onDayPress={handleDayPress}
-              markingType="period"
-              markedDates={markedDates}
-              minDate={
-                showCalendar === "end"
-                  ? startDate
-                  : new Date().toISOString().split("T")[0]
-              }
-              pastScrollRange={0}
-              futureScrollRange={3}
-              scrollEnabled
-              showScrollIndicator={false}
-              theme={{
-                backgroundColor: theme.card,
-                calendarBackground: theme.card,
-                textSectionTitleColor: theme.subtext,
-                selectedDayBackgroundColor: theme.primary,
-                selectedDayTextColor: "#fff",
-                todayTextColor: theme.primary,
-                dayTextColor: theme.text,
-                textDisabledColor: theme.border,
-                arrowColor: theme.primary,
-                monthTextColor: theme.text,
-                indicatorColor: theme.primary,
-              }}
-            />
-          </View>
-        </View>
-      </Modal>
     </ScreenLayout>
   );
 }
 
 const createStyles = (theme: any) =>
   StyleSheet.create({
-    header: {
+    image: {
+      width: "100%",
+      height: 240,
+    },
+    backBtn: {
+      position: "absolute",
+      top: 16,
+      left: 16,
+      backgroundColor: theme.card,
+      padding: 8,
+      borderRadius: 20,
+    },
+    titleCard: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
-      padding: 14,
+      backgroundColor: theme.card,
+      padding: 16,
+      borderBottomWidth: 0.5,
+      borderColor: theme.border,
+    },
+    title: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: theme.text,
+    },
+    subtitle: {
+      fontSize: 13,
+      color: theme.subtext,
+      marginTop: 2,
+    },
+    price: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: theme.primary,
+    },
+    tabBar: {
+      flexDirection: "row",
       backgroundColor: theme.card,
       borderBottomWidth: 0.5,
       borderColor: theme.border,
     },
-    backBtn: {
-      padding: 8,
-      borderRadius: 20,
-      backgroundColor: theme.background,
+    tab: {
+      flex: 1,
+      paddingVertical: 12,
+      alignItems: "center",
+      borderBottomWidth: 2,
+      borderBottomColor: "transparent",
     },
-    headerTitle: {
-      fontSize: 17,
+    tabActive: {
+      borderBottomColor: theme.primary,
+    },
+    tabText: {
+      fontSize: 14,
+      color: theme.subtext,
+      fontWeight: "500",
+    },
+    tabTextActive: {
+      color: theme.primary,
       fontWeight: "700",
-      color: theme.text,
     },
-    content: {
+    tabContent: {
       padding: 14,
       gap: 12,
-      paddingBottom: 20,
     },
     card: {
       backgroundColor: theme.card,
@@ -471,303 +440,212 @@ const createStyles = (theme: any) =>
       padding: 14,
       borderWidth: 0.5,
       borderColor: theme.border,
-      gap: 10,
-    },
-    listingImage: {
-      width: "100%",
-      height: 140,
-      borderRadius: 10,
-    },
-    listingInfo: { gap: 3 },
-    listingTitle: {
-      fontSize: 17,
-      fontWeight: "700",
-      color: theme.text,
-    },
-    listingSubtitle: {
-      fontSize: 13,
-      color: theme.subtext,
-    },
-    listingPrice: {
-      fontSize: 15,
-      fontWeight: "700",
-      color: theme.primary,
-      marginTop: 2,
-    },
-    listingMeta: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      marginTop: 2,
-    },
-    listingMetaText: {
-      fontSize: 12,
-      color: theme.subtext,
-      marginRight: 6,
+      gap: 8,
     },
     sectionTitle: {
       fontSize: 14,
       fontWeight: "700",
       color: theme.text,
-    },
-    label: {
-      fontSize: 12,
-      color: theme.subtext,
       marginBottom: 4,
     },
-    dateRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
-    dateBtn: {
-      flex: 1,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      padding: 10,
-      borderRadius: 10,
-      borderWidth: 0.5,
-      borderColor: theme.border,
-      backgroundColor: theme.background,
-    },
-    dateBtnActive: {
-      borderColor: theme.primary,
-    },
-    dateBtnLabel: {
-      fontSize: 11,
-      color: theme.subtext,
-    },
-    dateBtnValue: {
+    bodyText: {
       fontSize: 13,
-      fontWeight: "500",
       color: theme.subtext,
+      lineHeight: 20,
     },
-    daysSummary: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      backgroundColor: theme.background,
-      padding: 8,
-      borderRadius: 8,
-      borderWidth: 0.5,
-      borderColor: theme.primary,
-    },
-    daysSummaryText: {
-      fontSize: 13,
-      color: theme.primary,
-      fontWeight: "600",
-    },
-    modeRow: {
-      flexDirection: "row",
-      gap: 10,
-    },
-    modeBtn: {
-      flex: 1,
-      alignItems: "center",
-      padding: 14,
-      borderRadius: 12,
-      borderWidth: 0.5,
-      borderColor: theme.border,
-      backgroundColor: theme.background,
-      gap: 4,
-    },
-    modeBtnActive: {
-      backgroundColor: theme.primary,
-      borderColor: theme.primary,
-    },
-    modeBtnText: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: theme.text,
-    },
-    modeBtnTextActive: {
-      color: "#fff",
-    },
-    modeBtnSub: {
-      fontSize: 12,
-      color: theme.subtext,
-    },
-    addressWrapper: {
-      gap: 6,
-    },
-    inputWrapper: {
-      flexDirection: "row",
-      alignItems: "center",
-      borderWidth: 0.5,
-      borderColor: theme.border,
-      borderRadius: 10,
-      paddingHorizontal: 10,
-      backgroundColor: theme.background,
-      gap: 6,
-    },
-    input: {
-      flex: 1,
-      paddingVertical: 11,
-      fontSize: 13,
-      color: theme.text,
-    },
-    suggestionList: {
-      backgroundColor: theme.card,
-      borderRadius: 10,
-      borderWidth: 0.5,
-      borderColor: theme.border,
-      overflow: "hidden",
-    },
-    suggestionItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      padding: 12,
-    },
-    suggestionBorder: {
-      borderBottomWidth: 0.5,
-      borderColor: theme.border,
-    },
-    suggestionMain: {
-      fontSize: 13,
-      color: theme.text,
-      fontWeight: "500",
-    },
-    suggestionSub: {
-      fontSize: 11,
-      color: theme.subtext,
-      marginTop: 1,
-    },
-    priceRow: {
+    infoRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
+      paddingVertical: 4,
+      borderBottomWidth: 0.5,
+      borderColor: theme.border,
     },
-    priceLabel: {
+    infoLabel: {
       fontSize: 13,
       color: theme.subtext,
     },
-    priceValue: {
+    infoValue: {
       fontSize: 13,
       color: theme.text,
       fontWeight: "500",
     },
-    divider: {
-      height: 0.5,
-      backgroundColor: theme.border,
-      marginVertical: 4,
-    },
-    totalLabel: {
-      fontSize: 15,
-      fontWeight: "700",
-      color: theme.text,
-    },
-    totalValue: {
-      fontSize: 15,
-      fontWeight: "700",
-      color: theme.primary,
-    },
-    textArea: {
-      height: 90,
+    badge: {
+      backgroundColor: theme.background,
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+      borderRadius: 20,
       borderWidth: 0.5,
       borderColor: theme.border,
+    },
+    badgeText: {
+      fontSize: 12,
+      color: theme.text,
+    },
+    bookedBanner: {
+      backgroundColor: "#F4433615",
       borderRadius: 10,
       padding: 10,
-      fontSize: 13,
-      color: theme.text,
-      textAlignVertical: "top",
-      backgroundColor: theme.background,
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 8,
+      borderWidth: 0.5,
+      borderColor: "#F44336",
+      marginTop: 4,
     },
-    termsRow: {
+    bookedBannerTitle: {
+      fontSize: 13,
+      color: "#F44336",
+      fontWeight: "600",
+      marginBottom: 4,
+    },
+    bookedBannerDate: {
+      fontSize: 12,
+      color: "#F44336",
+      marginTop: 2,
+    },
+    ratingOverview: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 16,
+      marginBottom: 12,
+    },
+    ratingScore: {
+      fontSize: 42,
+      fontWeight: "700",
+      color: theme.text,
+    },
+    ratingCount: {
+      fontSize: 12,
+      color: theme.subtext,
+      marginTop: 2,
+    },
+    starsRow: {
+      flexDirection: "row",
+      gap: 2,
+      alignItems: "center",
+    },
+    ratingBreakdown: {
+      gap: 5,
+    },
+    ratingBarRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+    },
+    ratingBarLabel: {
+      fontSize: 12,
+      color: theme.subtext,
+      width: 10,
+    },
+    ratingBarBg: {
+      flex: 1,
+      height: 6,
+      backgroundColor: theme.background,
+      borderRadius: 3,
+      overflow: "hidden",
+    },
+    ratingBarFill: {
+      height: 6,
+      backgroundColor: "#F5C842",
+      borderRadius: 3,
+    },
+    reviewHeader: {
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
-      padding: 4,
+      marginBottom: 6,
     },
-    checkbox: {
-      width: 22,
-      height: 22,
-      borderRadius: 6,
-      borderWidth: 1.5,
-      borderColor: theme.border,
+    avatar: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: theme.background,
       alignItems: "center",
       justifyContent: "center",
+      borderWidth: 0.5,
+      borderColor: theme.border,
     },
-    checkboxActive: {
-      backgroundColor: theme.primary,
-      borderColor: theme.primary,
-    },
-    termsText: {
-      fontSize: 13,
-      color: theme.subtext,
-      flex: 1,
-    },
-    termsLink: {
+    avatarText: {
+      fontSize: 12,
+      fontWeight: "700",
       color: theme.primary,
+    },
+    reviewName: {
+      fontSize: 13,
       fontWeight: "600",
+      color: theme.text,
+      marginBottom: 2,
+    },
+    ownerHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    ownerAvatar: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      backgroundColor: theme.background,
+      borderWidth: 0.5,
+      borderColor: theme.border,
+    },
+    ownerName: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: theme.text,
+      marginBottom: 4,
+    },
+    messageOwnerBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      backgroundColor: theme.primary,
+      padding: 14,
+      borderRadius: 12,
+      marginTop: 4,
+    },
+    messageOwnerText: {
+      color: "#fff",
+      fontWeight: "700",
+      fontSize: 14,
     },
     bottomBar: {
       flexDirection: "row",
-      alignItems: "center",
-      padding: 14,
-      gap: 12,
+      padding: 12,
+      gap: 10,
       backgroundColor: theme.card,
       borderTopWidth: 0.5,
       borderColor: theme.border,
     },
-    totalSummaryLabel: {
-      fontSize: 12,
-      color: theme.subtext,
-    },
-    totalSummaryValue: {
-      fontSize: 18,
-      fontWeight: "700",
-      color: theme.text,
-    },
-    confirmBtn: {
-      flex: 2,
-      backgroundColor: theme.primary,
-      padding: 14,
-      borderRadius: 12,
+    messageBtn: {
+      flex: 1,
+      flexDirection: "row",
       alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      padding: 13,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.primary,
     },
-    confirmBtnDisabled: {
-      backgroundColor: theme.border,
+    messageBtnText: {
+      color: theme.primary,
+      fontWeight: "700",
+      fontSize: 14,
     },
-    confirmBtnText: {
+    rentBtn: {
+      flex: 2,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 13,
+      borderRadius: 12,
+      backgroundColor: theme.primary,
+    },
+    rentBtnText: {
       color: "#fff",
       fontWeight: "700",
-      fontSize: 15,
-    },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.5)",
-      justifyContent: "flex-end",
-    },
-    modalSheet: {
-      backgroundColor: theme.card,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      paddingBottom: 30,
-      maxHeight: "85%",
-    },
-    modalHandle: {
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: theme.border,
-      alignSelf: "center",
-      marginTop: 12,
-      marginBottom: 8,
-    },
-    modalHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingHorizontal: 16,
-      paddingBottom: 10,
-      borderBottomWidth: 0.5,
-      borderColor: theme.border,
-    },
-    modalTitle: {
-      fontSize: 16,
-      fontWeight: "700",
-      color: theme.text,
+      fontSize: 14,
     },
   });

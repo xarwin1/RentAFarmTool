@@ -1,50 +1,75 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { ID, Models } from "react-native-appwrite";
-import { account } from "./appwrite";
+import { account, databases, config } from "./appwrite";
 
 type authContextType = {
   user: Models.User<Models.Preferences> | null;
   isLoadingUser: boolean;
-  signUp: (email: string, password: string) => Promise<string | null>;
+  signUp: (
+    email: string,
+    password: string,
+    name: string,
+    phone?: string,
+    location?: string,
+    birthdate?: string,
+  ) => Promise<string | null>;
   logIn: (email: string, password: string) => Promise<string | null>;
   logOut: () => Promise<void>;
 }
 
 const authContext = createContext<authContextType | undefined>(undefined);
 
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<Models.User<Models.Preferences> | null>(
-    null
-  );
-
+  const [user, setUser] = useState<Models.User<Models.Preferences> | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState<boolean>(true);
 
   useEffect(() => {
     getUser();
-  }, [])
+  }, []);
 
   const getUser = async () => {
     try {
       const session = await account.get();
-      setUser(session)
+      setUser(session);
     } catch (error) {
-      setUser(null)
+      setUser(null);
     } finally {
       setIsLoadingUser(false);
     }
-  }
+  };
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    name: string,
+    phone?: string,
+    location?: string,
+    birthdate?: string,
+  ) => {
     try {
-      await account.create(ID.unique(), email, password);
-      await logIn(email, password);
+      const authUser = await account.create(ID.unique(), email, password, name);
+      await account.createEmailPasswordSession(email, password);
+      await databases.createDocument(
+        config.databaseId,
+        config.usersCollectionId,
+        authUser.$id,
+        {
+          name,
+          email,
+          phone: phone || null,
+          location: location || null,
+          birthdate: birthdate || null,
+          memberSince: new Date().toISOString(),
+          rating: 0,
+          totalListings: 0,
+          totalRentals: 0,
+        }
+      );
+      const session = await account.get();
+      setUser(session);
       return null;
-    } catch (error) {
-      if (error instanceof Error) {
-        return error.message;
-      }
-      return "An error occured during signup."
+    } catch (error: any) {
+      return error.message;
     }
   };
 
@@ -58,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error instanceof Error) {
         return error.message;
       }
-      return "An error occured during login."
+      return "An error occurred during login.";
     }
   };
 
@@ -68,15 +93,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
     } catch (error) {
       console.log(error);
-
     }
-
   };
 
   return (
-    <authContext.Provider
-      value={{ user, isLoadingUser, signUp, logIn, logOut }}
-    >{children}</authContext.Provider>
+    <authContext.Provider value={{ user, isLoadingUser, signUp, logIn, logOut }}>
+      {children}
+    </authContext.Provider>
   );
 }
 

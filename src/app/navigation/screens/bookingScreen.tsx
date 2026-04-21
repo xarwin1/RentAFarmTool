@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,18 +9,26 @@ import {
   Image,
   Modal,
   ActivityIndicator,
+  Alert,
+  Animated,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/theme/ThemeContext";
 import ScreenLayout from "@/styles/screenlayout";
 import { CalendarList } from "react-native-calendars";
+import { getListing, createRental } from "../../../../lib/services";
+import { useAuth } from "../../../../lib/auth-context";
 
 export default function BookingScreen() {
   const { theme } = useTheme();
   const router = useRouter();
   const styles = createStyles(theme);
+  const { user } = useAuth();
+  const { id } = useLocalSearchParams<{ id: string }>();
 
+  const [listing, setListing] = useState<any>(null);
+  const [loadingListing, setLoadingListing] = useState(true);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [markedDates, setMarkedDates] = useState({});
@@ -34,10 +42,90 @@ export default function BookingScreen() {
   const [loadingAddress, setLoadingAddress] = useState(false);
   const [notes, setNotes] = useState("");
   const [agreed, setAgreed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [blockedDates, setBlockedDates] = useState<any>({});
 
-  const DAILY_RATE = 1500;
-  const DEPOSIT = 500;
-  const DELIVERY_FEE = 200;
+  // Animated value for the floating confirm button
+  const floatAnim = useRef(new Animated.Value(0)).current;
+
+  // Show/hide floating button based on date selection progress
+  const showFloatingBtn = startDate !== "" || endDate !== "";
+
+  useEffect(() => {
+    Animated.spring(floatAnim, {
+      toValue: showFloatingBtn ? 1 : 0,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 10,
+    }).start();
+  }, [showFloatingBtn]);
+
+  useEffect(() => {
+    if (id) loadListing();
+  }, [id]);
+
+  const loadListing = async () => {
+    try {
+      const data = await getListing(id);
+      setListing(data);
+      if (!data.deliveryAvailable) setDeliveryMode("pickup");
+
+      const blocked: any = {};
+
+      if (data.availableFrom) {
+        let current = new Date();
+        const availStart = new Date(data.availableFrom);
+        while (current < availStart) {
+          const key = current.toISOString().split("T")[0];
+          blocked[key] = { disabled: true, disableTouchEvent: true };
+          current.setDate(current.getDate() + 1);
+        }
+      }
+
+      if (data.availableTo) {
+        const availEnd = new Date(data.availableTo);
+        const future = new Date(availEnd);
+        future.setDate(future.getDate() + 1);
+        for (let i = 0; i < 180; i++) {
+          const key = future.toISOString().split("T")[0];
+          blocked[key] = { disabled: true, disableTouchEvent: true };
+          future.setDate(future.getDate() + 1);
+        }
+      }
+
+      if (data.bookedDates?.length > 0) {
+        for (const rangeStr of data.bookedDates) {
+          try {
+            const range = JSON.parse(rangeStr);
+            let current = new Date(range.from);
+            const end = new Date(range.to);
+            while (current <= end) {
+              const key = current.toISOString().split("T")[0];
+              blocked[key] = {
+                disabled: true,
+                disableTouchEvent: true,
+                color: theme.border,
+                textColor: theme.subtext,
+              };
+              current.setDate(current.getDate() + 1);
+            }
+          } catch {
+            // skip malformed entries
+          }
+        }
+      }
+
+      setBlockedDates(blocked);
+    } catch (err) {
+      console.error("Failed to load listing:", err);
+    } finally {
+      setLoadingListing(false);
+    }
+  };
+
+  const DAILY_RATE = listing?.pricePerDay || 0;
+  const DEPOSIT = listing?.deposit || 0;
+  const DELIVERY_FEE = listing?.deliveryFee || 0;
 
   const parseDays = () => {
     if (!startDate || !endDate) return 0;
@@ -52,8 +140,22 @@ export default function BookingScreen() {
   const deliveryFee = deliveryMode === "delivery" ? DELIVERY_FEE : 0;
   const total = subtotal + DEPOSIT + deliveryFee;
 
+  const isDateBlocked = (dateStr: string) => blockedDates[dateStr]?.disabled === true;
+
+  const hasBlockedDateInRange = (start: string, end: string) => {
+    let current = new Date(start);
+    const endD = new Date(end);
+    while (current <= endD) {
+      if (isDateBlocked(current.toISOString().split("T")[0])) return true;
+      current.setDate(current.getDate() + 1);
+    }
+    return false;
+  };
+
   const handleDayPress = (day: any) => {
     const dateStr = day.dateString;
+    if (isDateBlocked(dateStr)) return;
+
     if (showCalendar === "start") {
       setStartDate(dateStr);
       if (endDate && dateStr >= endDate) setEndDate("");
@@ -61,20 +163,22 @@ export default function BookingScreen() {
       setShowCalendar("end");
     } else {
       if (dateStr <= startDate) return;
+      if (hasBlockedDateInRange(startDate, dateStr)) {
+        Alert.alert(
+          "Dates unavailable",
+          "Your selected range includes dates that are already booked. Please choose different dates."
+        );
+        return;
+      }
       setEndDate(dateStr);
       buildMarked(startDate, dateStr);
-      setShowCalendar(null);
     }
   };
 
   const buildMarked = (start: string, end: string) => {
     if (!start) return;
     const marked: any = {};
-    marked[start] = {
-      startingDay: true,
-      color: theme.primary,
-      textColor: "#fff",
-    };
+    marked[start] = { startingDay: true, color: theme.primary, textColor: "#fff" };
     if (end && end !== start) {
       let current = new Date(start);
       current.setDate(current.getDate() + 1);
@@ -84,22 +188,25 @@ export default function BookingScreen() {
         marked[key] = { color: `${theme.primary}40`, textColor: theme.text };
         current.setDate(current.getDate() + 1);
       }
-      marked[end] = {
-        endingDay: true,
-        color: theme.primary,
-        textColor: "#fff",
-      };
+      marked[end] = { endingDay: true, color: theme.primary, textColor: "#fff" };
     }
     setMarkedDates(marked);
   };
 
   const formatDate = (date: string) => {
     if (!date) return "Select date";
-    const d = new Date(date);
-    return d.toLocaleDateString("en-PH", {
+    return new Date(date).toLocaleDateString("en-PH", {
       month: "short",
       day: "numeric",
       year: "numeric",
+    });
+  };
+
+  const formatShort = (date: string) => {
+    if (!date) return "—";
+    return new Date(date).toLocaleDateString("en-PH", {
+      month: "short",
+      day: "numeric",
     });
   };
 
@@ -115,12 +222,7 @@ export default function BookingScreen() {
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5&countrycodes=ph`,
-        {
-          headers: {
-            "Accept-Language": "en",
-            "User-Agent": "RentAFarmTool/1.0",
-          },
-        }
+        { headers: { "Accept-Language": "en", "User-Agent": "RentAFarmTool/1.0" } }
       );
       const data = await res.json();
       setSuggestions(data);
@@ -133,9 +235,8 @@ export default function BookingScreen() {
   };
 
   const handleSelectAddress = (item: any) => {
-    const formatted = item.display_name;
-    setAddress(formatted);
-    setAddressQuery(formatted);
+    setAddress(item.display_name);
+    setAddressQuery(item.display_name);
     setSuggestions([]);
     setShowSuggestions(false);
   };
@@ -149,7 +250,48 @@ export default function BookingScreen() {
   };
 
   const fullAddress = specificAddress ? `${specificAddress}, ${address}` : address;
+
   const canConfirm = agreed && days > 0 && (deliveryMode === "pickup" || address);
+
+  const handleConfirm = async () => {
+    if (!user || !listing) return;
+    setSubmitting(true);
+    try {
+      await createRental({
+        listingId: id,
+        renterId: user.$id,
+        ownerId: listing.ownerId,
+        startDate: new Date(startDate).toISOString(),
+        endDate: new Date(endDate).toISOString(),
+        totalDays: days,
+        dailyRate: DAILY_RATE,
+        deposit: DEPOSIT,
+        deliveryMode,
+        deliveryAddress: deliveryMode === "delivery" ? fullAddress : undefined,
+        deliveryFee: deliveryMode === "delivery" ? DELIVERY_FEE : undefined,
+        subtotal,
+        total,
+        notes: notes || undefined,
+      });
+      Alert.alert(
+        "Booking submitted!",
+        "Your rental request has been sent to the owner. You'll be notified once they confirm.",
+        [{ text: "OK", onPress: () => router.replace("/navigation/(tabs)/rentals") }]
+      );
+    } catch (err: any) {
+      Alert.alert("Booking failed", err.message || "Something went wrong.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loadingListing) {
+    return (
+      <ScreenLayout style={{ backgroundColor: theme.background }}>
+        <ActivityIndicator size="large" color={theme.primary} style={{ flex: 1 }} />
+      </ScreenLayout>
+    );
+  }
 
   return (
     <ScreenLayout style={{ backgroundColor: theme.background }}>
@@ -171,20 +313,22 @@ export default function BookingScreen() {
           {/* LISTING SUMMARY CARD */}
           <View style={styles.card}>
             <Image
-              source={{
-                uri: "https://ferrari.scene7.com/is/image/ferrari/67b4b9739b77dc0010a956aa-sf-25-launch-desk",
-              }}
+              source={{ uri: "https://www.deere.com/assets/images/region-4/products/tractors/utility-tractors/6m-series-utility-tractors/6M_155_Front_Left_studio_graphic_1024x576_small_ad511f737c4f9d929dd90cdfd360038474a69d9a.jpg" }}
               style={styles.listingImage}
             />
             <View style={styles.listingInfo}>
-              <Text style={styles.listingTitle}>Tractor</Text>
-              <Text style={styles.listingSubtitle}>Ferrari SF-25</Text>
-              <Text style={styles.listingPrice}>₱1,500/day</Text>
+              <Text style={styles.listingTitle}>{listing?.title ?? ""}</Text>
+              <Text style={styles.listingSubtitle}>{listing?.condition ?? ""}</Text>
+              <Text style={styles.listingPrice}>
+                {"₱" + (listing?.pricePerDay?.toLocaleString() ?? "0") + "/day"}
+              </Text>
               <View style={styles.listingMeta}>
                 <Ionicons name="location-outline" size={12} color={theme.subtext} />
-                <Text style={styles.listingMetaText}>Naic, Cavite</Text>
+                <Text style={styles.listingMetaText}>{listing?.location ?? ""}</Text>
                 <Ionicons name="star" size={12} color="#F5C842" />
-                <Text style={styles.listingMetaText}>4.8</Text>
+                <Text style={styles.listingMetaText}>
+                  {listing?.rating > 0 ? listing.rating.toFixed(1) : "New"}
+                </Text>
               </View>
             </View>
           </View>
@@ -204,7 +348,7 @@ export default function BookingScreen() {
                 />
                 <View>
                   <Text style={styles.dateBtnLabel}>Start</Text>
-                  <Text style={[styles.dateBtnValue, startDate && { color: theme.text }]}>
+                  <Text style={[styles.dateBtnValue, startDate ? { color: theme.text } : {}]}>
                     {formatDate(startDate)}
                   </Text>
                 </View>
@@ -223,7 +367,7 @@ export default function BookingScreen() {
                 />
                 <View>
                   <Text style={styles.dateBtnLabel}>End</Text>
-                  <Text style={[styles.dateBtnValue, endDate && { color: theme.text }]}>
+                  <Text style={[styles.dateBtnValue, endDate ? { color: theme.text } : {}]}>
                     {formatDate(endDate)}
                   </Text>
                 </View>
@@ -234,7 +378,7 @@ export default function BookingScreen() {
               <View style={styles.daysSummary}>
                 <Ionicons name="time-outline" size={16} color={theme.primary} />
                 <Text style={styles.daysSummaryText}>
-                  {days} {days === 1 ? "day" : "days"} selected
+                  {days + " " + (days === 1 ? "day" : "days") + " selected"}
                 </Text>
               </View>
             )}
@@ -248,11 +392,7 @@ export default function BookingScreen() {
                 style={[styles.modeBtn, deliveryMode === "pickup" && styles.modeBtnActive]}
                 onPress={() => setDeliveryMode("pickup")}
               >
-                <Ionicons
-                  name="walk-outline"
-                  size={20}
-                  color={deliveryMode === "pickup" ? "#fff" : theme.subtext}
-                />
+                <Ionicons name="walk-outline" size={20} color={deliveryMode === "pickup" ? "#fff" : theme.subtext} />
                 <Text style={[styles.modeBtnText, deliveryMode === "pickup" && styles.modeBtnTextActive]}>
                   Pickup
                 </Text>
@@ -262,32 +402,31 @@ export default function BookingScreen() {
               </Pressable>
 
               <Pressable
-                style={[styles.modeBtn, deliveryMode === "delivery" && styles.modeBtnActive]}
-                onPress={() => setDeliveryMode("delivery")}
+                style={[
+                  styles.modeBtn,
+                  deliveryMode === "delivery" && styles.modeBtnActive,
+                  !listing?.deliveryAvailable && { opacity: 0.4 },
+                ]}
+                onPress={() => listing?.deliveryAvailable && setDeliveryMode("delivery")}
+                disabled={!listing?.deliveryAvailable}
               >
-                <Ionicons
-                  name="car-outline"
-                  size={20}
-                  color={deliveryMode === "delivery" ? "#fff" : theme.subtext}
-                />
+                <Ionicons name="car-outline" size={20} color={deliveryMode === "delivery" ? "#fff" : theme.subtext} />
                 <Text style={[styles.modeBtnText, deliveryMode === "delivery" && styles.modeBtnTextActive]}>
                   Delivery
                 </Text>
                 <Text style={[styles.modeBtnSub, deliveryMode === "delivery" && { color: "rgba(255,255,255,0.7)" }]}>
-                  +₱{DELIVERY_FEE}
+                  {listing?.deliveryAvailable ? "+₱" + DELIVERY_FEE : "Unavailable"}
                 </Text>
               </Pressable>
             </View>
           </View>
 
-          {/* ADDRESS — separate card, only when delivery */}
+          {/* ADDRESS */}
           {deliveryMode === "delivery" && (
             <View style={styles.card}>
               <Text style={styles.sectionTitle}>Delivery address</Text>
-
-              {/* LOCATION SEARCH */}
               <Text style={styles.label}>Barangay / City</Text>
-              <View style={[styles.inputWrapper, address && { borderColor: theme.primary }]}>
+              <View style={[styles.inputWrapper, address ? { borderColor: theme.primary } : {}]}>
                 <Ionicons
                   name={address ? "checkmark-circle" : "location-outline"}
                   size={16}
@@ -301,9 +440,7 @@ export default function BookingScreen() {
                   onChangeText={handleAddressSearch}
                   returnKeyType="search"
                 />
-                {loadingAddress && (
-                  <ActivityIndicator size="small" color={theme.primary} />
-                )}
+                {loadingAddress && <ActivityIndicator size="small" color={theme.primary} />}
                 {addressQuery.length > 0 && !loadingAddress && (
                   <Pressable onPress={clearAddress}>
                     <Ionicons name="close-circle" size={16} color={theme.subtext} />
@@ -311,30 +448,21 @@ export default function BookingScreen() {
                 )}
               </View>
 
-              {/* SUGGESTIONS DROPDOWN */}
               {showSuggestions && suggestions.length > 0 && (
                 <View style={styles.suggestionList}>
                   {suggestions.map((item, index) => (
                     <Pressable
                       key={index}
-                      style={[
-                        styles.suggestionItem,
-                        index < suggestions.length - 1 && styles.suggestionBorder,
-                      ]}
+                      style={[styles.suggestionItem, index < suggestions.length - 1 && styles.suggestionBorder]}
                       onPress={() => handleSelectAddress(item)}
                     >
                       <Ionicons name="location-outline" size={14} color={theme.primary} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.suggestionMain} numberOfLines={1}>
-                          {item.address?.road ||
-                            item.address?.suburb ||
-                            item.address?.village ||
-                            item.name}
+                          {item.address?.road || item.address?.suburb || item.address?.village || item.name}
                         </Text>
                         <Text style={styles.suggestionSub} numberOfLines={1}>
-                          {[item.address?.city, item.address?.municipality, item.address?.state]
-                            .filter(Boolean)
-                            .join(", ")}
+                          {[item.address?.city, item.address?.municipality, item.address?.state].filter(Boolean).join(", ")}
                         </Text>
                       </View>
                     </Pressable>
@@ -348,14 +476,9 @@ export default function BookingScreen() {
                 </View>
               )}
 
-              {/* LANDMARK / SPECIFIC ADDRESS */}
               <Text style={styles.label}>Landmark / Specific address</Text>
-              <View style={[styles.inputWrapper, specificAddress && { borderColor: theme.primary }]}>
-                <Ionicons
-                  name="home-outline"
-                  size={16}
-                  color={specificAddress ? theme.primary : theme.subtext}
-                />
+              <View style={[styles.inputWrapper, specificAddress ? { borderColor: theme.primary } : {}]}>
+                <Ionicons name="home-outline" size={16} color={specificAddress ? theme.primary : theme.subtext} />
                 <TextInput
                   style={styles.input}
                   placeholder="e.g. Near Jollibee, 123 Mabini St..."
@@ -377,24 +500,26 @@ export default function BookingScreen() {
             <Text style={styles.sectionTitle}>Price breakdown</Text>
             <View style={styles.priceRow}>
               <Text style={styles.priceLabel}>
-                ₱{DAILY_RATE.toLocaleString()} x {days} {days === 1 ? "day" : "days"}
+                {"₱" + DAILY_RATE.toLocaleString() + " x " + days + " " + (days === 1 ? "day" : "days")}
               </Text>
-              <Text style={styles.priceValue}>₱{subtotal.toLocaleString()}</Text>
+              <Text style={styles.priceValue}>{"₱" + subtotal.toLocaleString()}</Text>
             </View>
             <View style={styles.priceRow}>
               <Text style={styles.priceLabel}>Deposit</Text>
-              <Text style={styles.priceValue}>₱{DEPOSIT.toLocaleString()}</Text>
+              <Text style={styles.priceValue}>
+                {DEPOSIT > 0 ? "₱" + DEPOSIT.toLocaleString() : "None"}
+              </Text>
             </View>
             {deliveryMode === "delivery" && (
               <View style={styles.priceRow}>
                 <Text style={styles.priceLabel}>Delivery fee</Text>
-                <Text style={styles.priceValue}>₱{DELIVERY_FEE.toLocaleString()}</Text>
+                <Text style={styles.priceValue}>{"₱" + DELIVERY_FEE.toLocaleString()}</Text>
               </View>
             )}
             <View style={styles.divider} />
             <View style={styles.priceRow}>
               <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>₱{total.toLocaleString()}</Text>
+              <Text style={styles.totalValue}>{"₱" + total.toLocaleString()}</Text>
             </View>
           </View>
 
@@ -417,7 +542,7 @@ export default function BookingScreen() {
               {agreed && <Ionicons name="checkmark" size={14} color="#fff" />}
             </View>
             <Text style={styles.termsText}>
-              I agree to the{" "}
+              {"I agree to the "}
               <Text style={styles.termsLink}>terms and conditions</Text>
             </Text>
           </Pressable>
@@ -427,14 +552,18 @@ export default function BookingScreen() {
         <View style={styles.bottomBar}>
           <View style={{ flex: 1 }}>
             <Text style={styles.totalSummaryLabel}>Total</Text>
-            <Text style={styles.totalSummaryValue}>₱{total.toLocaleString()}</Text>
+            <Text style={styles.totalSummaryValue}>{"₱" + total.toLocaleString()}</Text>
           </View>
           <Pressable
-            style={[styles.confirmBtn, !canConfirm && styles.confirmBtnDisabled]}
-            disabled={!canConfirm}
-            onPress={() => console.log("Booking confirmed, address:", fullAddress)}
+            style={[styles.confirmBtn, (!canConfirm || submitting) && styles.confirmBtnDisabled]}
+            disabled={!canConfirm || submitting}
+            onPress={handleConfirm}
           >
-            <Text style={styles.confirmBtnText}>Confirm booking</Text>
+            {submitting ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.confirmBtnText}>Confirm booking</Text>
+            )}
           </Pressable>
         </View>
       </View>
@@ -449,18 +578,75 @@ export default function BookingScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
+
+            {/* MODAL HEADER */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {showCalendar === "start" ? "Select start date" : "Select end date"}
+                {showCalendar === "start"
+                  ? "Select start date"
+                  : showCalendar === "end"
+                    ? "Select end date"
+                    : "Select dates"}
               </Text>
               <Pressable onPress={() => setShowCalendar(null)}>
                 <Ionicons name="close" size={22} color={theme.text} />
               </Pressable>
             </View>
+
+            {/* LEGEND */}
+            <View style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 16,
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+              borderBottomWidth: 0.5,
+              borderColor: theme.border,
+            }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: theme.border }} />
+                <Text style={{ fontSize: 12, color: theme.subtext }}>Already booked</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: theme.primary }} />
+                <Text style={{ fontSize: 12, color: theme.subtext }}>Your selection</Text>
+              </View>
+            </View>
+
+            {/* DATE SUMMARY */}
+            <View style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              backgroundColor: theme.background,
+            }}>
+              <View style={{ alignItems: "center", flex: 1 }}>
+                <Text style={{ fontSize: 11, color: theme.subtext, marginBottom: 2 }}>Start</Text>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: startDate ? theme.primary : theme.subtext }}>
+                  {startDate ? formatShort(startDate) : "—"}
+                </Text>
+              </View>
+              <Ionicons name="arrow-forward" size={16} color={theme.subtext} />
+              <View style={{ alignItems: "center", flex: 1 }}>
+                <Text style={{ fontSize: 11, color: theme.subtext, marginBottom: 2 }}>End</Text>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: endDate ? theme.primary : theme.subtext }}>
+                  {endDate ? formatShort(endDate) : "—"}
+                </Text>
+              </View>
+              <View style={{ alignItems: "center", flex: 1 }}>
+                <Text style={{ fontSize: 11, color: theme.subtext, marginBottom: 2 }}>Duration</Text>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: days > 0 ? theme.text : theme.subtext }}>
+                  {days > 0 ? days + " " + (days === 1 ? "day" : "days") : "—"}
+                </Text>
+              </View>
+            </View>
+
             <CalendarList
               onDayPress={handleDayPress}
               markingType="period"
-              markedDates={markedDates}
+              markedDates={{ ...blockedDates, ...markedDates }}
               minDate={
                 showCalendar === "end"
                   ? startDate
@@ -484,6 +670,67 @@ export default function BookingScreen() {
                 indicatorColor: theme.primary,
               }}
             />
+
+            {/* FLOATING CONFIRM BUTTON — overlays the calendar */}
+            <Animated.View
+              style={[
+                styles.floatingBtn,
+                {
+                  opacity: floatAnim,
+                  transform: [
+                    {
+                      translateY: floatAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [24, 0],
+                      }),
+                    },
+                    {
+                      scale: floatAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.92, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+              pointerEvents={showFloatingBtn ? "auto" : "none"}
+            >
+              <Pressable
+                style={[
+                  styles.floatingBtnInner,
+                  {
+                    backgroundColor:
+                      startDate && endDate ? theme.primary : theme.card,
+                    borderColor:
+                      startDate && endDate ? theme.primary : theme.border,
+                  },
+                ]}
+                onPress={() => {
+                  if (startDate && endDate) {
+                    setShowCalendar(null);
+                  }
+                }}
+                disabled={!startDate || !endDate}
+              >
+                <Ionicons
+                  name={startDate && endDate ? "checkmark-circle" : "calendar-outline"}
+                  size={18}
+                  color={startDate && endDate ? "#fff" : theme.subtext}
+                />
+                <Text
+                  style={[
+                    styles.floatingBtnText,
+                    { color: startDate && endDate ? "#fff" : theme.subtext },
+                  ]}
+                >
+                  {startDate && endDate
+                    ? `Confirm ${days} ${days === 1 ? "day" : "days"}`
+                    : startDate
+                      ? "Now pick an end date"
+                      : "Select both dates"}
+                </Text>
+              </Pressable>
+            </Animated.View>
           </View>
         </View>
       </Modal>
@@ -807,6 +1054,7 @@ const createStyles = (theme: any) =>
       borderTopRightRadius: 24,
       paddingBottom: 30,
       maxHeight: "85%",
+      position: "relative",
     },
     modalHandle: {
       width: 36,
@@ -830,5 +1078,32 @@ const createStyles = (theme: any) =>
       fontSize: 16,
       fontWeight: "700",
       color: theme.text,
+    },
+    // Floating confirm button styles
+    floatingBtn: {
+      position: "absolute",
+      bottom: 16,
+      left: 16,
+      right: 16,
+      zIndex: 10,
+    },
+    floatingBtnInner: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+      borderRadius: 14,
+      borderWidth: 1,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.18,
+      shadowRadius: 10,
+      elevation: 6,
+    },
+    floatingBtnText: {
+      fontSize: 15,
+      fontWeight: "700",
     },
   });

@@ -1,13 +1,16 @@
-import React, { useState } from "react";
+import React from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { useTheme } from "@/theme/ThemeContext";
 
-const categories = ["All", "Tractors", "Tools", "Seeds", "Equipment", "Rentals", "Others"];
+type Props = {
+  categories: string[];
+  selected: string;
+  onSelect: (category: string) => void;
+};
 
-export default function CategoryFilter() {
+export default function CategoryFilter({ categories, selected, onSelect }: Props) {
   const { theme } = useTheme();
   const styles = createStyles(theme);
-  const [selected, setSelected] = useState("All");
 
   return (
     <View style={styles.wrapper}>
@@ -21,7 +24,7 @@ export default function CategoryFilter() {
           return (
             <Pressable
               key={item}
-              onPress={() => setSelected(item)}
+              onPress={() => onSelect(item)}
               style={[styles.chip, isActive && styles.chipActive]}
             >
               <Text style={[styles.text, isActive && styles.textActive]}>
@@ -35,16 +38,10 @@ export default function CategoryFilter() {
   );
 }
 
-const createStyles = (theme) =>
+const createStyles = (theme: any) =>
   StyleSheet.create({
-    wrapper: {
-      marginBottom: 10,
-    },
-    container: {
-      paddingHorizontal: 12,
-      gap: 10,
-      alignItems: "center",
-    },
+    wrapper: { marginBottom: 10 },
+    container: { paddingHorizontal: 12, gap: 10, alignItems: "center" },
     chip: {
       paddingVertical: 8,
       paddingHorizontal: 14,
@@ -57,12 +54,6 @@ const createStyles = (theme) =>
       backgroundColor: theme.primary,
       borderColor: theme.primary,
     },
-    text: {
-      fontSize: 14,
-      color: theme.subtext,
-      fontWeight: "500",
-    },
-    textActive: {
-      color: "#fff",
-    },
+    text: { fontSize: 14, color: theme.subtext, fontWeight: "500" },
+    textActive: { color: "#fff" },
   });

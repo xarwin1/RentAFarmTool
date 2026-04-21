@@ -3,7 +3,12 @@ import { View, TextInput, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/theme/ThemeContext";
 
-export default function SearchBar() {
+type Props = {
+  value: string;
+  onChangeText: (text: string) => void;
+};
+
+export default function SearchBar({ value, onChangeText }: Props) {
   const { theme } = useTheme();
   const styles = createStyles(theme);
 
@@ -14,12 +19,14 @@ export default function SearchBar() {
         placeholder="Search tools, tractors..."
         style={styles.input}
         placeholderTextColor={theme.subtext}
+        value={value}
+        onChangeText={onChangeText}
       />
     </View>
   );
 }
 
-const createStyles = (theme) =>
+const createStyles = (theme: any) =>
   StyleSheet.create({
     container: {
       flexDirection: "row",
@@ -37,9 +44,7 @@ const createStyles = (theme) =>
       shadowRadius: 4,
       elevation: 3,
     },
-    icon: {
-      marginRight: 8,
-    },
+    icon: { marginRight: 8 },
     input: {
       flex: 1,
       paddingVertical: 10,

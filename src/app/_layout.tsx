@@ -67,6 +67,7 @@ export default function RootLayout() {
                 <Stack.Screen name="navigation/(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="navigation/screens/listingDetail" options={{ headerShown: false }} />
                 <Stack.Screen name="navigation/screens/bookingScreen" options={{ headerShown: false }} />
+                <Stack.Screen name="navigation/screens/conversation" options={{ headerShown: false }} />
               </Stack>
             </RouteGuard>
           </SafeAreaProvider>

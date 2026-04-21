@@ -14,12 +14,20 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../../lib/auth-context';
 import { useTheme } from '@/theme/ThemeContext';
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 export default function LoginScreen() {
   const [isSignUp, setIsSignUp] = useState<boolean>(false);
+  const [name, setName] = useState<string>("");
   const [email, setEmail] = useState<string>("");
+  const [phone, setPhone] = useState<string>("");
+  const [birthdate, setBirthdate] = useState<string>("");
+  const [showBirthdatePicker, setShowBirthdatePicker] = useState(false);
+  const [location, setLocation] = useState<string>("");
   const [password, setPassword] = useState<string>("");
+  const [confirmPassword, setConfirmPassword] = useState<string>("");
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const { theme } = useTheme();
@@ -28,24 +36,45 @@ export default function LoginScreen() {
   const { logIn, signUp } = useAuth();
 
   const handleAuth = async () => {
-    if (!email || !password) {
-      setError("Please fill in all fields.");
-      return;
-    }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters long.");
-      return;
-    }
-    setError(null);
     if (isSignUp) {
-      const authError = await signUp(email, password);
+      if (!name || !email || !password || !confirmPassword) {
+        setError("Please fill in all required fields.");
+        return;
+      }
+      if (password.length < 8) {
+        setError("Password must be at least 8 characters long.");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("Passwords do not match.");
+        return;
+      }
+      setError(null);
+      const authError = await signUp(email, password, name, phone, location, birthdate);
       if (authError) { setError(authError); return; }
       router.replace("/navigation/(tabs)");
     } else {
+      if (!email || !password) {
+        setError("Please fill in all fields.");
+        return;
+      }
+      setError(null);
       const authError = await logIn(email, password);
       if (authError) { setError(authError); return; }
       router.replace("/navigation/(tabs)");
     }
+  };
+
+  const switchMode = () => {
+    setIsSignUp(p => !p);
+    setError(null);
+    setName("");
+    setEmail("");
+    setPhone("");
+    setLocation("");
+    setPassword("");
+    setConfirmPassword("");
+    setBirthdate("");
   };
 
   return (
@@ -73,8 +102,25 @@ export default function LoginScreen() {
           {isSignUp ? "Create an account" : "Welcome back"}
         </Text>
 
+        {/* NAME — sign up only */}
+        {isSignUp && (
+          <>
+            <Text style={styles.label}>Full name <Text style={styles.required}>*</Text></Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="person-outline" size={18} color={theme.subtext} style={styles.inputIcon} />
+              <TextInput
+                value={name}
+                onChangeText={setName}
+                placeholder="Juan Dela Cruz"
+                placeholderTextColor={theme.subtext}
+                style={styles.input}
+              />
+            </View>
+          </>
+        )}
+
         {/* EMAIL */}
-        <Text style={styles.label}>Email</Text>
+        <Text style={styles.label}>Email <Text style={styles.required}>*</Text></Text>
         <View style={styles.inputWrapper}>
           <Ionicons name="mail-outline" size={18} color={theme.subtext} style={styles.inputIcon} />
           <TextInput
@@ -88,8 +134,71 @@ export default function LoginScreen() {
           />
         </View>
 
+        {/* PHONE — sign up only */}
+        {isSignUp && (
+          <>
+            <Text style={styles.label}>Phone number</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="call-outline" size={18} color={theme.subtext} style={styles.inputIcon} />
+              <TextInput
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="+63 912 345 6789"
+                placeholderTextColor={theme.subtext}
+                keyboardType="phone-pad"
+                style={styles.input}
+              />
+            </View>
+          </>
+        )}
+
+        {/* LOCATION — sign up only */}
+        {isSignUp && (
+          <>
+            <Text style={styles.label}>Location</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="location-outline" size={18} color={theme.subtext} style={styles.inputIcon} />
+              <TextInput
+                value={location}
+                onChangeText={setLocation}
+                placeholder="Naic, Cavite"
+                placeholderTextColor={theme.subtext}
+                style={styles.input}
+              />
+            </View>
+          </>
+        )}
+        {/* birthday*/}
+        {isSignUp && (
+          <>
+            <Text style={styles.label}>Birthdate</Text>
+            <Pressable
+              style={styles.inputWrapper}
+              onPress={() => setShowBirthdatePicker(true)}
+            >
+              <Ionicons name="calendar-outline" size={18} color={theme.subtext} style={styles.inputIcon} />
+              <Text style={[styles.input, { paddingVertical: 11, color: birthdate ? theme.text : theme.subtext }]}>
+                {birthdate ? new Date(birthdate).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" }) : "Select birthdate"}
+              </Text>
+            </Pressable>
+
+            {showBirthdatePicker && (
+              <DateTimePicker
+                value={birthdate ? new Date(birthdate) : new Date(2000, 0, 1)}
+                mode="date"
+                display="spinner"
+                maximumDate={new Date()}
+                onChange={(event, date) => {
+                  setShowBirthdatePicker(false);
+                  if (date) setBirthdate(date.toISOString());
+                }}
+              />
+            )}
+          </>
+        )}
+
         {/* PASSWORD */}
-        <Text style={styles.label}>Password</Text>
+        <Text style={styles.label}>Password <Text style={styles.required}>*</Text></Text>
         <View style={styles.inputWrapper}>
           <Ionicons name="lock-closed-outline" size={18} color={theme.subtext} style={styles.inputIcon} />
           <TextInput
@@ -110,6 +219,32 @@ export default function LoginScreen() {
           </Pressable>
         </View>
 
+        {/* CONFIRM PASSWORD — sign up only */}
+        {isSignUp && (
+          <>
+            <Text style={styles.label}>Confirm password <Text style={styles.required}>*</Text></Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="lock-closed-outline" size={18} color={theme.subtext} style={styles.inputIcon} />
+              <TextInput
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="••••••••"
+                placeholderTextColor={theme.subtext}
+                autoCapitalize="none"
+                secureTextEntry={!showConfirmPassword}
+                style={styles.input}
+              />
+              <Pressable onPress={() => setShowConfirmPassword(p => !p)}>
+                <Ionicons
+                  name={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
+                  size={18}
+                  color={theme.subtext}
+                />
+              </Pressable>
+            </View>
+          </>
+        )}
+
         {/* ERROR */}
         {error && <Text style={styles.errorText}>{error}</Text>}
 
@@ -121,7 +256,7 @@ export default function LoginScreen() {
         </Pressable>
 
         {/* SWITCH MODE */}
-        <Pressable onPress={() => setIsSignUp(p => !p)}>
+        <Pressable onPress={switchMode}>
           <Text style={styles.switchText}>
             {isSignUp
               ? "Already have an account? "
@@ -154,12 +289,6 @@ const createStyles = (theme: any) =>
       borderRadius: 28,
       marginBottom: 14,
     },
-    appTitle: {
-      fontSize: 24,
-      fontWeight: "700",
-      color: "#fff",
-      letterSpacing: 0.3,
-    },
     sheet: {
       backgroundColor: theme.card,
       borderTopLeftRadius: 28,
@@ -188,6 +317,9 @@ const createStyles = (theme: any) =>
       fontSize: 12,
       color: theme.subtext,
       marginBottom: 5,
+    },
+    required: {
+      color: "#F44336",
     },
     inputWrapper: {
       flexDirection: "row",

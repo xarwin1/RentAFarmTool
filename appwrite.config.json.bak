@@ -2,6 +2,48 @@
     "projectId": "69ad39c90007cb0900a9",
     "projectName": "rent-a-farm-tool",
     "endpoint": "https://sgp.cloud.appwrite.io/v1",
+    "settings": {
+        "services": {
+            "account": true,
+            "avatars": true,
+            "databases": true,
+            "locale": true,
+            "health": true,
+            "storage": true,
+            "teams": true,
+            "users": true,
+            "sites": true,
+            "functions": true,
+            "graphql": true,
+            "messaging": true
+        },
+        "protocols": {
+            "rest": true,
+            "graphql": true,
+            "websocket": true
+        },
+        "auth": {
+            "methods": {
+                "jwt": true,
+                "phone": true,
+                "invites": true,
+                "anonymous": true,
+                "email-otp": true,
+                "magic-url": true,
+                "email-password": true
+            },
+            "security": {
+                "duration": 31536000,
+                "limit": 0,
+                "sessionsLimit": 10,
+                "passwordHistory": 0,
+                "passwordDictionary": false,
+                "personalDataCheck": false,
+                "sessionAlerts": false,
+                "mockNumbers": []
+            }
+        }
+    },
     "tablesDB": [
         {
             "$id": "69d38d31002ac8de3799",
@@ -165,6 +207,24 @@
                     "format": ""
                 },
                 {
+                  "key": "bookedFrom",
+                  "type": "datetime",
+                  "required": false
+                },
+                {
+                  "key": "bookedTo",
+                  "type": "datetime",
+                  "required": false
+                },
+                {
+                  "key": "bookedDates",
+                  "type": "string",
+                  "required": false,
+                  "array": true,
+                  "size": 5000
+                }
+
+                {
                     "key": "status",
                     "type": "string",
                     "required": true,
@@ -190,13 +250,6 @@
                     "default": null,
                     "min": null,
                     "max": null
-                },
-                {
-                  "key": "bookedDates",
-                  "type": "string",
-                  "required": false,
-                  "array": true,
-                  "size": 5000
                 }
             ],
             "indexes": [
@@ -834,6 +887,25 @@
                 }
             ],
             "indexes": []
+        }
+    ],
+    "buckets": [
+        {
+            "$id": "69e3416700314f70c926",
+            "$permissions": [
+                "create(\"users\")",
+                "read(\"users\")",
+                "delete(\"users\")",
+                "read(\"any\")"
+            ],
+            "fileSecurity": false,
+            "name": "storage",
+            "enabled": true,
+            "maximumFileSize": 50000000,
+            "allowedFileExtensions": [],
+            "compression": "none",
+            "encryption": true,
+            "antivirus": true
         }
     ]
 }

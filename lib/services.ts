@@ -18,8 +18,15 @@ export const createUser = async (userId: string, data: {
   });
 };
 
-export const getUser = async (userId: string) => {
+{/*export const getUser = async (userId: string) => {
   return await databases.getDocument(db, config.usersCollectionId, userId);
+};*/}
+
+export const getUser = async (userId: string) => {
+  const result = await databases.listDocuments(db, config.usersCollectionId, [
+    Query.equal("$id", userId),
+  ]);
+  return result.documents[0];
 };
 
 export const updateUser = async (userId: string, data: Partial<{
@@ -55,12 +62,19 @@ export const createListing = async (data: {
   availableFrom?: string;
   availableTo?: string;
 }) => {
-  return await databases.createDocument(db, config.listingsCollectionId, ID.unique(), {
+  const listing = await databases.createDocument(db, config.listingsCollectionId, ID.unique(), {
     ...data,
     status: "active",
     rating: 0,
-    totalReviews: 0,
+    totalReviews: 0
   });
+  const owner = await databases.getDocument(db, config.usersCollectionId, data.ownerId);
+  await databases.updateDocument(db, config.usersCollectionId, data.ownerId, {
+    totalListings: (owner.totalListings || 0) + 1,
+  });
+
+  return listing;
+
 };
 
 export const getListings = async (queries: string[] = []) => {
@@ -119,9 +133,41 @@ export const getRentals = async (userId: string, role: "renter" | "owner") => {
 };
 
 export const updateRentalStatus = async (rentalId: string, status: string) => {
-  return await databases.updateDocument(db, config.rentalsCollectionId, rentalId, { status });
-};
+  const rental = await databases.getDocument(db, config.rentalsCollectionId, rentalId);
+  await databases.updateDocument(db, config.rentalsCollectionId, rentalId, { status });
 
+  if (status === "ongoing") {
+    // add booked range to listing
+    const listing = await databases.getDocument(db, config.listingsCollectionId, rental.listingId);
+    const existing = listing.bookedDates || [];
+    const newRange = JSON.stringify({
+      from: rental.startDate.split("T")[0],
+      to: rental.endDate.split("T")[0],
+      rentalId,
+    });
+    await databases.updateDocument(db, config.listingsCollectionId, rental.listingId, {
+      bookedDates: [...existing, newRange],
+    });
+  }
+
+  if (status === "completed" || status === "cancelled") {
+    // remove booked range from listing
+    const listing = await databases.getDocument(db, config.listingsCollectionId, rental.listingId);
+    const existing = listing.bookedDates || [];
+    const updated = existing.filter((d: string) => {
+      try {
+        return JSON.parse(d).rentalId !== rentalId;
+      } catch {
+        return true;
+      }
+    });
+    await databases.updateDocument(db, config.listingsCollectionId, rental.listingId, {
+      bookedDates: updated,
+    });
+  }
+
+  return rental;
+};
 // ── MESSAGES ───────────────────────────────────────────
 export const sendMessage = async (data: {
   senderId: string;
@@ -186,8 +232,8 @@ export const uploadFile = async (file: any) => {
   return await storage.createFile(config.bucketId, ID.unique(), file);
 };
 
-export const getFileUrl = (fileId: string) => {
-  return storage.getFilePreview(config.bucketId, fileId);
+export const getFileUrl = (fileId: string): string => {
+  return `${config.endpoint}/storage/buckets/${config.bucketId}/files/${fileId}/view?project=${config.projectId}`;
 };
 
 export const deleteFile = async (fileId: string) => {
