@@ -62,6 +62,7 @@ export default function ConversationScreen() {
         senderId: user!.$id,
         receiverId: partnerId,
         content: input.trim(),
+        senderName: user!.name,
       });
       setMessages((prev) => [...prev, msg]);
       setInput("");

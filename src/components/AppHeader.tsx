@@ -13,21 +13,42 @@ import { Ionicons } from "@expo/vector-icons";
 import createStyles from "@/styles/index.styles";
 import { useTheme } from "@/theme/ThemeContext";
 import { useAuth } from "../../lib/auth-context";
-import { getNotifications, markNotificationRead } from "../../lib/services";
+import { getNotifications, markNotificationRead, getUser, getFileUrl } from "../../lib/services";
+import { useRouter } from "expo-router";
 
 export default function AppHeader({ title = "Rent a Farm Tool" }) {
   const { theme } = useTheme();
   const styles = createStyles(theme);
   const localStyles = createLocalStyles(theme);
   const { user } = useAuth();
+  const router = useRouter();
 
   const [showNotifs, setShowNotifs] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [avatar, setAvatar] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user) loadNotifications();
+    if (user) {
+      loadNotifications();
+      loadAvatar();
+    }
   }, [user]);
+
+  const loadAvatar = async () => {
+    try {
+      const profile = await getUser(user!.$id);
+      if (profile?.avatar) {
+        setAvatar(
+          profile.avatar.startsWith("http")
+            ? profile.avatar
+            : getFileUrl(profile.avatar)
+        );
+      }
+    } catch (err) {
+      console.error("Failed to load avatar:", err);
+    }
+  };
 
   const loadNotifications = async () => {
     setLoading(true);
@@ -87,12 +108,27 @@ export default function AppHeader({ title = "Rent a Farm Tool" }) {
     return date.toLocaleDateString("en-PH", { month: "short", day: "numeric" });
   };
 
+  const handleNotifPress = async (item: any) => {
+    await handleMarkRead(item.$id);
+    if (item.relatedId) {
+      if (item.type === "booking") {
+        const [rentalId, role] = item.relatedId.split("|");
+        router.push(`/navigation/screens/rentalDetail?id=${rentalId}&type=${role || "renter"}`);
+      } else if (item.type === "message") {
+        router.push(`/navigation/(tabs)/messages`);
+      } else if (item.type === "review") {
+        router.push(`/navigation/(tabs)/rentals`);
+      }
+    }
+    setShowNotifs(false);
+  };
+
   const renderNotif = ({ item }: { item: any }) => {
     const icon = typeIcon(item.type);
     return (
       <Pressable
         style={[localStyles.notifItem, !item.isRead && localStyles.notifUnread]}
-        onPress={() => handleMarkRead(item.$id)}
+        onPress={() => handleNotifPress(item)}
       >
         <View style={[localStyles.notifIcon, { backgroundColor: `${icon.color}20` }]}>
           <Ionicons name={icon.name as any} size={18} color={icon.color} />
@@ -110,12 +146,27 @@ export default function AppHeader({ title = "Rent a Farm Tool" }) {
   return (
     <>
       <View style={styles.header}>
-        {/* LEFT: Logo + Title */}
+        {/* LEFT: Avatar + Title */}
         <View style={styles.headerLeft}>
-          <Image
-            style={styles.profilePic}
-            source={require("../../assets/raft/logo.png")}
-          />
+          <Pressable onPress={() => router.push("/navigation/(tabs)/profile")}>
+            {avatar ? (
+              <Image
+                source={{ uri: avatar }}
+                style={styles.profilePic}
+              />
+            ) : (
+              <View style={[styles.profilePic, {
+                backgroundColor: theme.background,
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 0.5,
+                borderColor: theme.border,
+                borderRadius: 20,
+              }]}>
+                <Ionicons name="person" size={20} color={theme.subtext} />
+              </View>
+            )}
+          </Pressable>
           <Text style={styles.appTitle}>{title}</Text>
         </View>
 
@@ -153,7 +204,6 @@ export default function AppHeader({ title = "Rent a Farm Tool" }) {
             style={localStyles.dropdown}
             onPress={(e) => e.stopPropagation()}
           >
-            {/* DROPDOWN HEADER */}
             <View style={localStyles.dropdownHeader}>
               <Text style={localStyles.dropdownTitle}>Notifications</Text>
               {unreadCount > 0 && (
@@ -163,7 +213,6 @@ export default function AppHeader({ title = "Rent a Farm Tool" }) {
               )}
             </View>
 
-            {/* CONTENT */}
             {loading ? (
               <ActivityIndicator
                 size="small"

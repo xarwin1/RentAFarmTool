@@ -77,7 +77,7 @@ export default function RentalsScreen() {
   };
 
   const onRefresh = useCallback(() => loadRentals(true), [tab, role]);
-
+  if (!user) return null;
   return (
     <ScreenLayout style={{ backgroundColor: theme.background }}>
       <View style={styles.container}>

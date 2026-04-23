@@ -279,6 +279,12 @@
                     "encrypt": false
                 },
                 {
+                    "key": "reviewerName",
+                    "type": "string",
+                    "size": "255",
+                    "required": false
+                },
+                {
                     "key": "ownerId",
                     "type": "string",
                     "required": true,
@@ -767,7 +773,7 @@
                     "type": "string",
                     "required": false,
                     "array": false,
-                    "size": 36,
+                    "size": 500,
                     "default": null,
                     "encrypt": false
                 },

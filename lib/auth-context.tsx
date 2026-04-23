@@ -65,8 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           totalRentals: 0,
         }
       );
-      const session = await account.get();
-      setUser(session);
+      await account.deleteSession("current");
       return null;
     } catch (error: any) {
       return error.message;

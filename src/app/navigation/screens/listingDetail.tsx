@@ -12,7 +12,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/theme/ThemeContext";
 import ScreenLayout from "@/styles/screenlayout";
-import { getListing, getReviews, getUser } from "../../../../lib/services";
+import { getListing, getReviews, getUser, getFileUrl } from "../../../../lib/services";
 import { avatars } from "../../../../lib/appwrite";
 
 const TABS = ["Details", "Reviews", "Owner"];
@@ -301,7 +301,9 @@ export default function ListingDetailScreen() {
           <View style={{ position: "relative" }}>
             <Image
               source={{
-                uri: "https://www.deere.com/assets/images/region-4/products/tractors/utility-tractors/6m-series-utility-tractors/6M_155_Front_Left_studio_graphic_1024x576_small_ad511f737c4f9d929dd90cdfd360038474a69d9a.jpg",
+                uri: listing?.images?.[0]
+                  ? getFileUrl(listing.images[0])
+                  : "https://www.deere.com/assets/images/region-4/products/tractors/utility-tractors/6m-series-utility-tractors/6M_155_Front_Left_studio_graphic_1024x576_small_ad511f737c4f9d929dd90cdfd360038474a69d9a.jpg",
               }}
               style={styles.image}
             />

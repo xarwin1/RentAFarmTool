@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Pressable, ScrollView, Image, ActivityIndicator } from "react-native";
+import { View, Text, Pressable, ScrollView, Image, ActivityIndicator, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import createProfileStyles from "@/styles/profile.styles";
 import SettingItem from "@/components/SettingItem";
 import ScreenLayout from "@/styles/screenlayout";
 import { useAuth } from "../../../../lib/auth-context";
 import { useTheme } from "@/theme/ThemeContext";
-import { avatars } from "../../../../lib/appwrite";
-import { getUser, getMyListings, getRentals } from "../../../../lib/services";
+import { getUser, updateUser, uploadFile, getFileUrl, getMyListings, getRentals } from "../../../../lib/services";
+import * as ImagePicker from "expo-image-picker";
 
 export default function ProfileScreen() {
   const { user, logOut } = useAuth();
@@ -18,9 +18,7 @@ export default function ProfileScreen() {
   const [listingCount, setListingCount] = useState(0);
   const [rentalCount, setRentalCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const avatarUrl = profile?.avatar
-    ? profile.avatar
-    : avatars.getInitials(profile?.name || user?.name || "U").toString();
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     if (user) loadProfile();
@@ -28,7 +26,6 @@ export default function ProfileScreen() {
 
   const loadProfile = async () => {
     try {
-      console.log("Loading profile for user:", user?.$id);
       const [userData, listings, rentals] = await Promise.all([
         getUser(user!.$id),
         getMyListings(user!.$id),
@@ -43,6 +40,49 @@ export default function ProfileScreen() {
       setLoading(false);
     }
   };
+
+  const handlePickAvatar = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Please allow access to your photo library.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (result.canceled) return;
+
+    setUploadingAvatar(true);
+    try {
+      const asset = result.assets[0];
+      const file = {
+        uri: asset.uri,
+        name: asset.fileName || `avatar_${Date.now()}.jpg`,
+        type: asset.mimeType || "image/jpeg",
+        size: asset.fileSize || 0,
+      };
+
+      const uploaded = await uploadFile(file);
+      const fileUrl = getFileUrl(uploaded.$id);
+
+      await updateUser(user!.$id, { avatar: fileUrl });
+      setProfile((prev: any) => ({ ...prev, avatar: fileUrl }));
+
+      Alert.alert("Success", "Profile picture updated!");
+    } catch (err) {
+      console.error("Avatar upload failed:", err);
+      Alert.alert("Error", "Failed to update profile picture.");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  if (!user) return null;
 
   if (loading) {
     return (
@@ -60,11 +100,45 @@ export default function ProfileScreen() {
           {/* PROFILE HEADER */}
           <View style={styles.card}>
             <View style={styles.profileRow}>
-              <Image
-                source={{ uri: avatarUrl }
-                }
-                style={styles.avatar}
-              />
+              {/* AVATAR WITH EDIT OVERLAY */}
+              <Pressable onPress={handlePickAvatar} style={{ marginRight: 12 }}>
+                {uploadingAvatar ? (
+                  <View style={[styles.avatar, {
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: theme.background,
+                  }]}>
+                    <ActivityIndicator size="small" color={theme.primary} />
+                  </View>
+                ) : (
+                  <View>
+                    <Image
+                      source={
+                        profile?.avatar
+                          ? { uri: profile.avatar }
+                          : require("@/assets/raft/logo-transparent.png")
+                      }
+                      style={styles.avatar}
+                    />
+                    <View style={{
+                      position: "absolute",
+                      bottom: 0,
+                      right: 0,
+                      width: 22,
+                      height: 22,
+                      borderRadius: 11,
+                      backgroundColor: theme.primary,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderWidth: 2,
+                      borderColor: theme.card,
+                    }}>
+                      <Ionicons name="camera" size={11} color="#fff" />
+                    </View>
+                  </View>
+                )}
+              </Pressable>
+
               <View style={{ flex: 1 }}>
                 <Text style={styles.name}>{profile?.name || user?.name || "—"}</Text>
                 <Text style={styles.location}>
@@ -74,6 +148,7 @@ export default function ProfileScreen() {
                   {profile?.email || user?.email}
                 </Text>
               </View>
+
               <Pressable style={styles.editBtn}>
                 <Ionicons name="pencil" size={16} color={theme.primary} />
               </Pressable>
@@ -106,8 +181,7 @@ export default function ProfileScreen() {
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <Ionicons name="calendar-outline" size={16} color={theme.subtext} />
                 <Text style={{ fontSize: 13, color: theme.subtext }}>
-                  Member since{" "}
-                  {new Date(profile.memberSince).toLocaleDateString("en-PH", {
+                  {"Member since " + new Date(profile.memberSince).toLocaleDateString("en-PH", {
                     month: "long",
                     year: "numeric",
                   })}

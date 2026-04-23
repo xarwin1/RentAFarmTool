@@ -7,13 +7,17 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Modal,
+  TextInput
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/theme/ThemeContext";
 import ScreenLayout from "@/styles/screenlayout";
-import { databases, config, avatars } from "../../../../lib/appwrite";
+import { databases, config, Query } from "../../../../lib/appwrite";
 import { getListing, getUser, updateRentalStatus } from "../../../../lib/services";
+import { createReview } from "../../../../lib/services";
+import { useAuth } from "../../../../lib/auth-context";
 
 export default function RentalDetailScreen() {
   const { theme } = useTheme();
@@ -26,6 +30,12 @@ export default function RentalDetailScreen() {
   const [otherUser, setOtherUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const { user } = useAuth();
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [hasReviewed, setHasReviewed] = useState(false);
 
   useEffect(() => {
     if (id) loadAll();
@@ -46,17 +56,53 @@ export default function RentalDetailScreen() {
       ]);
       setListing(listingData);
       setOtherUser(userData);
+
+      // check if user already reviewed this rental
+      const existingReviews = await databases.listDocuments(
+        config.databaseId,
+        config.reviewsCollectionId,
+        [
+          Query.equal("rentalId", id),
+          Query.equal("reviewerId", user!.$id),
+        ]
+      );
+      setHasReviewed(existingReviews.total > 0);
     } catch (err) {
       console.error("Failed to load rental detail:", err);
     } finally {
       setLoading(false);
     }
   };
+  const handleSubmitReview = async () => {
+    if (rating === 0) {
+      Alert.alert("Rating required", "Please select a star rating.");
+      return;
+    }
+    setSubmittingReview(true);
+    try {
+      await createReview({
+        rentalId: id,
+        listingId: rental?.listingId,
+        reviewerId: user!.$id,
+        ownerId: rental?.ownerId,
+        rating,
+        comment: comment.trim() || undefined,
+        reviewerName: user!.name,
+      });
+      setHasReviewed(true);
+      setShowReviewModal(false);
+      Alert.alert("Review submitted!", "Thank you for your feedback.");
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to submit review.");
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   const handleStatusUpdate = async (status: string, label: string) => {
     Alert.alert(
-      `${label} rental?`,
-      `Are you sure you want to ${label.toLowerCase()} this rental?`,
+      label + " rental?",
+      "Are you sure you want to " + label.toLowerCase() + " this rental?",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -65,7 +111,13 @@ export default function RentalDetailScreen() {
           onPress: async () => {
             setUpdating(true);
             try {
-              await updateRentalStatus(id, status);
+              await updateRentalStatus(
+                id,
+                status,
+                status === "cancelled" ? rental?.renterId : undefined,  // notify renter if declined
+                otherUser?.name,
+                listing?.title,
+              );
               setRental((prev: any) => ({ ...prev, status }));
             } catch (err) {
               Alert.alert("Error", "Failed to update rental status.");
@@ -77,7 +129,6 @@ export default function RentalDetailScreen() {
       ]
     );
   };
-
   const formatDate = (dateStr: string) => {
     if (!dateStr) return "—";
     return new Date(dateStr).toLocaleDateString("en-PH", {
@@ -291,6 +342,7 @@ export default function RentalDetailScreen() {
               </Pressable>
             </>
           )}
+
           {rental?.status === "pending" && type === "renter" && (
             <Pressable
               style={[styles.actionBtn, { backgroundColor: "#D32F2F", flex: 1 }]}
@@ -300,6 +352,7 @@ export default function RentalDetailScreen() {
               <Text style={styles.actionBtnText}>Cancel request</Text>
             </Pressable>
           )}
+
           {rental?.status === "ongoing" && type === "owner" && (
             <Pressable
               style={[styles.actionBtn, { backgroundColor: theme.primary, flex: 1 }]}
@@ -313,6 +366,7 @@ export default function RentalDetailScreen() {
               )}
             </Pressable>
           )}
+
           {rental?.status === "ongoing" && (
             <Pressable
               style={[styles.actionBtn, { backgroundColor: "#1976D2", flex: 1 }]}
@@ -325,6 +379,7 @@ export default function RentalDetailScreen() {
               <Text style={styles.actionBtnText}>Message</Text>
             </Pressable>
           )}
+
           {rental?.status === "completed" && (
             <Pressable
               style={[styles.actionBtn, { backgroundColor: theme.primary, flex: 1 }]}
@@ -335,7 +390,24 @@ export default function RentalDetailScreen() {
               <Text style={styles.actionBtnText}>View listing</Text>
             </Pressable>
           )}
-          {(rental?.status === "cancelled" || rental?.status === "completed") && (
+
+          {rental?.status === "completed" && type === "renter" && !hasReviewed && (
+            <Pressable
+              style={[styles.actionBtn, { backgroundColor: "#F5C842", flex: 1 }]}
+              onPress={() => setShowReviewModal(true)}
+            >
+              <Text style={[styles.actionBtnText, { color: "#333" }]}>Leave a review</Text>
+            </Pressable>
+          )}
+
+          {rental?.status === "completed" && type === "renter" && hasReviewed && (
+            <View style={[styles.actionBtn, { backgroundColor: theme.border, flex: 1, flexDirection: "row", gap: 6 }]}>
+              <Ionicons name="checkmark-circle" size={16} color={theme.subtext} />
+              <Text style={[styles.actionBtnText, { color: theme.subtext }]}>Reviewed</Text>
+            </View>
+          )}
+
+          {rental?.status === "cancelled" && (
             <Pressable
               style={[styles.actionBtn, { backgroundColor: theme.border, flex: 1 }]}
               onPress={() => router.back()}
@@ -345,6 +417,87 @@ export default function RentalDetailScreen() {
           )}
         </View>
       </View>
+      <Modal
+        visible={showReviewModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowReviewModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
+          <View style={{
+            backgroundColor: theme.card,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            padding: 24,
+            paddingBottom: 40,
+          }}>
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: theme.border, alignSelf: "center", marginBottom: 20 }} />
+
+            <Text style={{ fontSize: 18, fontWeight: "700", color: theme.text, marginBottom: 4 }}>
+              Leave a review
+            </Text>
+            <Text style={{ fontSize: 13, color: theme.subtext, marginBottom: 20 }}>
+              {listing?.title}
+            </Text>
+
+            {/* STAR RATING */}
+            <Text style={{ fontSize: 13, color: theme.subtext, marginBottom: 10 }}>Rating</Text>
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Pressable key={star} onPress={() => setRating(star)}>
+                  <Ionicons
+                    name={star <= rating ? "star" : "star-outline"}
+                    size={36}
+                    color={star <= rating ? "#F5C842" : theme.border}
+                  />
+                </Pressable>
+              ))}
+            </View>
+
+            {/* COMMENT */}
+            <Text style={{ fontSize: 13, color: theme.subtext, marginBottom: 6 }}>Comment (optional)</Text>
+            <TextInput
+              style={{
+                borderWidth: 0.5,
+                borderColor: theme.border,
+                borderRadius: 10,
+                padding: 12,
+                fontSize: 13,
+                color: theme.text,
+                backgroundColor: theme.background,
+                height: 100,
+                textAlignVertical: "top",
+                marginBottom: 20,
+              }}
+              placeholder="Share your experience..."
+              placeholderTextColor={theme.subtext}
+              multiline
+              value={comment}
+              onChangeText={setComment}
+            />
+
+            {/* SUBMIT */}
+            <Pressable
+              style={{
+                backgroundColor: rating > 0 ? theme.primary : theme.border,
+                padding: 14,
+                borderRadius: 12,
+                alignItems: "center",
+              }}
+              disabled={rating === 0 || submittingReview}
+              onPress={handleSubmitReview}
+            >
+              {submittingReview ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>
+                  Submit review
+                </Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </ScreenLayout>
   );
 }

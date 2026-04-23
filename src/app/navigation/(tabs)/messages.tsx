@@ -160,7 +160,7 @@ export default function MessagesScreen() {
       </View>
     </Pressable>
   );
-
+  if (!user) return null;
   return (
     <ScreenLayout style={{ backgroundColor: theme.background }}>
       <View style={styles.container}>

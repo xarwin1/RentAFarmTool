@@ -10,6 +10,7 @@ import {
   Pressable,
   Text,
   TextInput,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../../lib/auth-context';
@@ -52,7 +53,24 @@ export default function LoginScreen() {
       setError(null);
       const authError = await signUp(email, password, name, phone, location, birthdate);
       if (authError) { setError(authError); return; }
-      router.replace("/navigation/(tabs)");
+
+      Alert.alert(
+        "Account created! 🎉",
+        "Your account has been created successfully. Please log in to continue.",
+        [{
+          text: "OK",
+          onPress: () => {
+            setIsSignUp(false);
+            setError(null);
+            setPassword("");
+            setConfirmPassword("");
+            setName("");
+            setPhone("");
+            setLocation("");
+            setBirthdate("");
+          }
+        }]
+      );
     } else {
       if (!email || !password) {
         setError("Please fill in all fields.");
@@ -99,7 +117,7 @@ export default function LoginScreen() {
         <View style={styles.handle} />
 
         <Text style={styles.heading}>
-          {isSignUp ? "Create an account" : "Welcome back"}
+          {isSignUp ? "Create an account" : "Log In"}
         </Text>
 
         {/* NAME — sign up only */}
@@ -111,7 +129,7 @@ export default function LoginScreen() {
               <TextInput
                 value={name}
                 onChangeText={setName}
-                placeholder="Juan Dela Cruz"
+                placeholder="Name"
                 placeholderTextColor={theme.subtext}
                 style={styles.input}
               />
@@ -126,7 +144,7 @@ export default function LoginScreen() {
           <TextInput
             value={email}
             onChangeText={setEmail}
-            placeholder="you@email.com"
+            placeholder="Email"
             placeholderTextColor={theme.subtext}
             autoCapitalize="none"
             keyboardType="email-address"
@@ -204,7 +222,7 @@ export default function LoginScreen() {
           <TextInput
             value={password}
             onChangeText={setPassword}
-            placeholder="••••••••"
+            placeholder="Password"
             placeholderTextColor={theme.subtext}
             autoCapitalize="none"
             secureTextEntry={!showPassword}
@@ -228,7 +246,7 @@ export default function LoginScreen() {
               <TextInput
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
-                placeholder="••••••••"
+                placeholder="Confim Password"
                 placeholderTextColor={theme.subtext}
                 autoCapitalize="none"
                 secureTextEntry={!showConfirmPassword}

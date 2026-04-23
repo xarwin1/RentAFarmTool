@@ -1,4 +1,5 @@
-import { Client, Account, Databases, Storage, Avatars, ID, Query } from "react-native-appwrite";
+import { Client, Account, Databases, Realtime, Storage, Avatars, ID, Query } from "react-native-appwrite";
+
 
 export const config = {
   endpoint: process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT!,
@@ -25,3 +26,4 @@ export const databases = new Databases(client);
 export const storage = new Storage(client);
 export const avatars = new Avatars(client);
 export { ID, Query };
+export const realtime = client;

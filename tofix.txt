@@ -1,0 +1,36 @@
+loginScreen
+
+DONE -- change the placeholders to less distracting ones
+DONE I guess?? -- fix change logout bug
+DONE -- disable autologin after creating an account
+
+homepage
+
+DONE -- make notifications work
+DONE -- make the profile picture work
+DONE -- scroll refresh
+
+messagesPage
+
+DONE -- make notifications work
+DONE -- make profile picture work
+
+rentals
+
+DONE -- make a working review system
+
+profile
+
+-- simple account settings like changing profile picture and changing information
+
+
+listing details
+DONE -- change the placeholder image to actual image
+
+bookingScreen
+
+DONE -- change the placeholder image to actual image
+
+
+FINAL BOSS 
+-- BUILD A WORKING APK

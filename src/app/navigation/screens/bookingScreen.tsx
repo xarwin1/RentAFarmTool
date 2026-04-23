@@ -17,7 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/theme/ThemeContext";
 import ScreenLayout from "@/styles/screenlayout";
 import { CalendarList } from "react-native-calendars";
-import { getListing, createRental } from "../../../../lib/services";
+import { getListing, createRental, getFileUrl } from "../../../../lib/services";
 import { useAuth } from "../../../../lib/auth-context";
 
 export default function BookingScreen() {
@@ -272,6 +272,8 @@ export default function BookingScreen() {
         subtotal,
         total,
         notes: notes || undefined,
+        renterName: user.name,
+        listingTitle: listing.title,
       });
       Alert.alert(
         "Booking submitted!",
@@ -313,10 +315,13 @@ export default function BookingScreen() {
           {/* LISTING SUMMARY CARD */}
           <View style={styles.card}>
             <Image
-              source={{ uri: "https://www.deere.com/assets/images/region-4/products/tractors/utility-tractors/6m-series-utility-tractors/6M_155_Front_Left_studio_graphic_1024x576_small_ad511f737c4f9d929dd90cdfd360038474a69d9a.jpg" }}
+              source={{
+                uri: listing?.images?.[0]
+                  ? getFileUrl(listing.images[0])
+                  : "https://www.deere.com/assets/images/region-4/products/tractors/utility-tractors/6m-series-utility-tractors/6M_155_Front_Left_studio_graphic_1024x576_small_ad511f737c4f9d929dd90cdfd360038474a69d9a.jpg",
+              }}
               style={styles.listingImage}
-            />
-            <View style={styles.listingInfo}>
+            />            <View style={styles.listingInfo}>
               <Text style={styles.listingTitle}>{listing?.title ?? ""}</Text>
               <Text style={styles.listingSubtitle}>{listing?.condition ?? ""}</Text>
               <Text style={styles.listingPrice}>

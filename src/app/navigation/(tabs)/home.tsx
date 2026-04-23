@@ -1,5 +1,5 @@
 import ScreenLayout from "../../../styles/screenlayout";
-import { View, FlatList, ActivityIndicator } from "react-native";
+import { View, FlatList, ActivityIndicator, RefreshControl } from "react-native";
 import { Text } from "react-native-paper";
 import ListingCard from "@/components/ListingCard";
 import CategoryFilter from "@/components/CategoryFilter";
@@ -7,7 +7,7 @@ import SearchBar from "@/components/SearchBar";
 import AppHeader from "@/components/AppHeader";
 import { useTheme } from "@/theme/ThemeContext";
 import createStyles from "@/styles/index.styles";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getListings, getCategories } from "../../../../lib/services";
 import { Query } from "../../../../lib/appwrite";
 
@@ -20,6 +20,7 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadCategories();
@@ -38,35 +39,35 @@ export default function Home() {
     }
   };
 
-  const loadListings = async () => {
-    setLoading(true);
+  const loadListings = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
     try {
       const queries: string[] = [];
-
       if (selectedCategory !== "All") {
         const cat = categories.find((c) => c.name === selectedCategory);
         if (cat) queries.push(Query.equal("categoryId", cat.$id));
       }
-
       if (searchQuery.trim()) {
         queries.push(Query.search("title", searchQuery.trim()));
       }
-
       queries.push(Query.orderDesc("$createdAt"));
-
       const result = await getListings(queries);
       setListings(result.documents);
     } catch (err) {
       console.error("Failed to load listings:", err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  const onRefresh = useCallback(() => loadListings(true), [selectedCategory, searchQuery]);
 
   return (
     <ScreenLayout style={{ backgroundColor: theme.background }}>
       <View style={styles.container}>
-        <AppHeader notifications={3} />
+        <AppHeader />
         <View style={styles.main}>
           <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
           <CategoryFilter
@@ -74,7 +75,7 @@ export default function Home() {
             selected={selectedCategory}
             onSelect={setSelectedCategory}
           />
-          <Text style={styles.headingText}>Recent Listings in Cavite</Text>
+          <Text style={styles.headingText}>Recent Listings in your Area</Text>
 
           {loading ? (
             <ActivityIndicator
@@ -93,8 +94,15 @@ export default function Home() {
               renderItem={({ item }) => <ListingCard listing={item} />}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 20 }}
-            />
-          )}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  colors={[theme.primary]}
+                  tintColor={theme.primary}
+                />
+              }
+            />)}
         </View>
       </View>
     </ScreenLayout>
