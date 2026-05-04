@@ -1,22 +1,22 @@
 # Rent a Farm Tool Progress Tracker
 
 ## UI elements
-- [ ] Theming / colorscheme
-- [ ] Dark Mode / Light Mode
-- [ ] Logos and Icons
+- [x] Theming / colorscheme
+- [x] Dark Mode / Light Mode
+- [x] Logos and Icons
 
 ## Pages
 - [x] Home
 - [x] Browse
 - [x] Add
-- [ ] Transactions
-- [ ] Profile / Settings
+- [x] Transactions
+- [x] Profile / Settings
 
 ## Functionality
 
-- [ ] Database
+- [x] Database
 - [x] Account System
-- [ ] Overall Functions
+- [x] Overall Functions
 
 ## Changelog
 
